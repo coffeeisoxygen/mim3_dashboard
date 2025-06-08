@@ -94,7 +94,7 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=src",                           # ✅ Ubah dari "src/sales_dashboard" ke "src"
+    "--cov=src",
     "--cov-report=html:.reports/coverage",
     "--cov-report=term-missing",
     "--html=.reports/tests/report.html",
