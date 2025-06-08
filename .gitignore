@@ -1,0 +1,31 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# VScode related settings
+.vscode/
+
+# Cache
+.pytest_cache/
+.ruff_cache/
+
+# github related files
+.github/instructions/
+.github/prompts/
+
+# Test reports
+.reports/
+
+# Sample Data
+.sample/
+
+
+# Streamlit Secret
+.streamlit/secrets.toml

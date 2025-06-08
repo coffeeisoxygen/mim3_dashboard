@@ -1,0 +1,7 @@
+[project]
+name = "mim3-dashboard"
+version = "0.1.0"
+description = "Dashboard laporan Bisnis MIM3"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
