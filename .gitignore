@@ -1,20 +1,77 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*.pyo
+*.pyd
 build/
 dist/
 wheels/
 *.egg-info
+*.egg
 
 # Virtual environments
-.venv
+.venv/
+venv/
+ENV/
+env/
+.env
 
-# VScode related settings
+# IDE and Editor files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
 
-# Cache
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Cache directories
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+
+# Streamlit specific
+.streamlit/secrets.toml
+.streamlit/config.toml
+.streamlit/credentials.toml
+
+# Data Science and ML
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.csv
+*.xlsx
+*.json
+data/
+datasets/
+models/
+checkpoints/
+*.model
+*.joblib
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # github related files
 .github/instructions/
@@ -22,6 +79,9 @@ wheels/
 
 # Test reports
 .reports/
+coverage.xml
+*.cover
+.hypothesis/
 
 # Sample Data
 .sample/
@@ -29,3 +89,30 @@ wheels/
 
 # Streamlit Secret
 .streamlit/secrets.toml
+
+
+# Python EGG
+*.egg
+*.egg-info/
+
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Database and Logs
+*.sqlite3
+*.db
+*.log
+logs/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
