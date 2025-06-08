@@ -116,3 +116,6 @@ site/
 *.temp
 temp/
 tmp/
+
+*._version.py
+src/_version.py
