@@ -6,8 +6,8 @@ import streamlit as st
 from loguru import logger
 
 from core.messages import AuthMessages
-from core.user_session import clear_user_session, set_user_session
-from models.md_user import UserLogin
+from core.us_session import clear_user_session, set_user_session
+from models.user import UserLogin  # ✅ Updated import
 
 
 class AuthFlowService:

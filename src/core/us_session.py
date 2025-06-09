@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from models.md_user import UserSession
+from models.user import UserSession
 
 
 def set_user_session(user_session: UserSession) -> None:

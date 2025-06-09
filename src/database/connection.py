@@ -8,7 +8,7 @@ from loguru import logger
 from sqlalchemy import text
 
 from config.constants import DBConstants
-from models.md_user import UserCreate
+from models.user.us_crud import UserCreate
 
 
 @st.cache_resource(show_spinner="Connecting to database...")
