@@ -35,6 +35,8 @@ class InterceptHandler(logging.Handler):
 @st.cache_resource(show_spinner="Mengatur logging...")
 def setup_logging() -> None:
     """Setup logging dengan centralized paths."""
+    session_id = getattr(st.session_state, "session_id", "init")
+
     logger.remove()
 
     # Get config from environment
@@ -42,7 +44,7 @@ def setup_logging() -> None:
     log_to_file = os.getenv("LOG_TO_FILE", "true").lower() == "true"
     separate_errors = os.getenv("LOG_SEPARATE_ERROR", "true").lower() == "true"
 
-    # Hardcoded format (user tidak perlu tau)
+    # ✅ Updated format dengan session tracking
     console_format = (
         "<green>{time:HH:mm:ss}</green> | "
         "<level>{level: <8}</level> | "
@@ -52,8 +54,12 @@ def setup_logging() -> None:
     file_format = (
         "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
         "{level: <8} | "
+        "[{extra[session_id]}] | "  # ✅ Session tracking
         "{name}:{function}:{line} | {message}"
     )
+
+    # Set session context untuk semua logs
+    logger.configure(extra={"session_id": session_id})
 
     # 1. Console output (selalu ada, simplified untuk user)
     logger.add(
@@ -105,5 +111,5 @@ def setup_logging() -> None:
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 
     logger.success(
-        f"Logging setup complete - Level: {log_level}, File: {log_to_file}, Separate errors: {separate_errors}"
+        f"Logging setup complete [session: {session_id}] - Level: {log_level}, File: {log_to_file}"
     )

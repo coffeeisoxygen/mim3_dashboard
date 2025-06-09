@@ -19,7 +19,6 @@ st.set_page_config(
 )
 
 setup_logging()
-initialize_database()
 
 
 @logger.catch
@@ -35,6 +34,17 @@ def login():
 @logger.catch
 def main():
     """Main application logic - clean and focused."""
+    # ✅ Setup logging hanya sekali per session
+    if "logging_initialized" not in st.session_state:
+        setup_logging()
+        st.session_state.logging_initialized = True
+
+    # ✅ Initialize database hanya sekali per session
+    if "db_initialized" not in st.session_state:
+        initialize_database()
+        st.session_state.db_initialized = True
+        logger.info(f"Database initialized for session: {st.session_state.session_id}")
+
     SessionManager.initialize()
 
     if st.session_state.logged_in:

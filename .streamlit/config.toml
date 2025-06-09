@@ -22,7 +22,7 @@
 # "info", or "debug".
 
 # Default: "info"
-# level = "info"
+level = "info"
 
 # String format for logging messages. If logger.datetimeFormat is set,
 # logger messages will default to `%(asctime)s.%(msecs)03d %(message)s`.
@@ -31,7 +31,7 @@
 # https://docs.python.org/3/library/logging.html#formatter-objects
 
 # Default: "%(asctime)s %(message)s"
-# messageFormat = "%(asctime)s %(message)s"
+messageFormat = "%(asctime)s [%(levelname)s] (%(process)d, %(thread)d) %(name)s: %(message)s"
 
 
 [client]

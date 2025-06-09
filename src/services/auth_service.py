@@ -2,97 +2,100 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
-
 import bcrypt
+import streamlit as st
 from loguru import logger
+from sqlalchemy import text
 
+from core.messages import AuthMessages
 from models.md_user import AuthResult, UserLogin, UserRole, UserSession
 
 
-class DemoUserData(TypedDict):
-    """Type hint untuk demo user data."""
+@st.cache_data(ttl=300)
+def get_user_by_username(username: str) -> dict | None:
+    """Get user data dari database - function level untuk proper caching."""
+    conn = st.connection("mim3_db", type="sql")
 
-    password_hash: bytes
-    role: UserRole
-    user_id: int
+    stmt = text("""
+        SELECT u.id, u.username, u.name, u.password_hash,
+               u.is_verified, r.name as role_name
+        FROM user_account u
+        JOIN role r ON u.role_id = r.id
+        WHERE u.username = :username AND u.is_verified = 1
+    """)
+
+    result = conn.query(str(stmt), params={"username": username}, ttl=300)
+    return result.iloc[0].to_dict() if len(result) > 0 else None
 
 
 class AuthService:
-    """Service untuk menangani authentication logic."""
+    """Service untuk menangani authentication logic dengan database."""
 
     def __init__(self):
-        """Initialize auth service dengan demo users."""
-        # TODO: Nanti diganti dengan database
-        self._demo_users: dict[str, DemoUserData] = {
-            "admin": {
-                "password_hash": self._hash_password("admin123"),
-                "role": "admin",
-                "user_id": 1,
-            },
-            "user": {
-                "password_hash": self._hash_password("user123"),
-                "role": "user",
-                "user_id": 2,
-            },
-            "manager": {
-                "password_hash": self._hash_password("manager123"),
-                "role": "manager",
-                "user_id": 3,
-            },
-        }
+        """Initialize auth service dengan database connection."""
+        try:
+            self.conn = st.connection("mim3_db", type="sql")
+            # Test connection
+            test_query = self.conn.query("SELECT 1 as test", ttl=0)
+            logger.success(f"Database connection test: {test_query}")
+        except Exception as e:
+            logger.error(f"Database connection failed: {e}")
+            raise
 
     def authenticate(self, login_data: UserLogin) -> AuthResult:
-        """Authenticate user dengan username dan password.
+        """Authenticate user dengan database lookup."""
+        session_id = getattr(st.session_state, "session_id", "unknown")
 
-        Args:
-            login_data: Data login dari user
-
-        Returns:
-            AuthResult dengan status authentication dan session data
-        """
         try:
-            # Check if user exists
-            if login_data.username not in self._demo_users:
+            logger.info(f"Login attempt: {login_data.username} [session: {session_id}]")
+
+            user_data = get_user_by_username(login_data.username)
+
+            if not user_data:
                 logger.warning(
-                    f"Login attempt with unknown username: {login_data.username}"
+                    f"User not found: {login_data.username} [session: {session_id}]"
                 )
                 return AuthResult(
-                    success=False, error_message="Username atau password salah"
+                    success=False,
+                    error_message=AuthMessages.LOGIN_FAILED,
                 )
 
-            user_data = self._demo_users[login_data.username]
-
-            # Verify password
+            logger.debug("Verifying password...")
             if not self._verify_password(
                 login_data.password, user_data["password_hash"]
             ):
-                logger.warning(f"Failed login attempt for user: {login_data.username}")
+                logger.warning(f"Invalid password for user: {login_data.username}")
                 return AuthResult(
-                    success=False, error_message="Username atau password salah"
+                    success=False,
+                    error_message=AuthMessages.LOGIN_FAILED,
                 )
 
-            # Create session
+            logger.info(f"Authentication successful for: {login_data.username}")
+            # Create session dengan role mapping
             session = UserSession(
-                user_id=user_data["user_id"],
-                username=login_data.username,
-                role=user_data["role"],
+                user_id=user_data["id"],
+                username=user_data["username"],
+                role=self._map_role(user_data["role_name"]),
             )
 
             logger.info(
-                f"Successful login for user: {login_data.username} (role: {user_data['role']})"
+                f"Login successful: {login_data.username} [session: {session_id}]"
             )
-
             return AuthResult(success=True, user_session=session)
 
         except Exception as e:
             logger.error(f"Authentication error: {e}")
-            return AuthResult(success=False, error_message="Terjadi kesalahan sistem")
+            return AuthResult(success=False, error_message=AuthMessages.SYSTEM_ERROR)
 
-    def _hash_password(self, password: str) -> bytes:
-        """Hash password menggunakan bcrypt."""
-        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    def _map_role(self, role_name: str) -> UserRole:
+        """Map database role ke UserRole type."""
+        role_mapping: dict[str, UserRole] = {
+            "admin": "admin",
+            "operator": "operator",
+            "team_indosat": "team_indosat",
+        }
+        return role_mapping.get(role_name, "operator")  # Default fallback
 
-    def _verify_password(self, password: str, hashed: bytes) -> bool:
-        """Verify password dengan hash."""
-        return bcrypt.checkpw(password.encode("utf-8"), hashed)
+    def _verify_password(self, password: str, password_hash: str) -> bool:
+        """Verify password dengan bcrypt hash dari database."""
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))

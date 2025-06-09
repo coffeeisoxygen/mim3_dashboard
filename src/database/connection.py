@@ -24,7 +24,9 @@ def get_connection():
 
 def initialize_database() -> None:
     """Initialize database tables dan default data."""
-    logger.info("Starting database initialization")
+    session_id = getattr(st.session_state, "session_id", "unknown")
+    logger.info(f"Starting database initialization [session: {session_id}]")
+
     conn = get_connection()
 
     try:
@@ -106,8 +108,8 @@ def initialize_database() -> None:
             logger.debug("Default admin user inserted/verified")
 
             s.commit()
-            logger.success("Database initialization completed successfully")
+            logger.success(f"Database initialization completed [session: {session_id}]")
 
     except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
+        logger.error(f"Database initialization failed [session: {session_id}]: {e}")
         raise
