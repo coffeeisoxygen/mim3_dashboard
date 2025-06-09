@@ -59,7 +59,6 @@ htmlcov/
 *.json
 data/
 datasets/
-models/
 checkpoints/
 *.model
 *.joblib

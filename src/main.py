@@ -1,25 +1,73 @@
-import streamlit as st
+"""main.py - Entry point for the MIM3 Dashboard application."""
 
+import streamlit as st
+from loguru import logger
+
+from config.log_setup import setup_logging
+from core.session import SessionManager
+from ui.components.auth import AuthHandler
+from ui.components.logout import LogoutHandler  # ✅ Import logout handler
+from ui.page_manager import PageManager
+
+# ✅ Streamlit config - must be first
 st.set_page_config(
-    page_title="Streamlit App",
-    page_icon=":guardsman:",
+    page_title="MIM3 Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+setup_logging()
 
+
+@logger.catch
+def login():
+    """Login page dengan auth service integration."""
+    st.title("🔐 MIM3 Dashboard Login")
+
+    auth_handler = AuthHandler()
+    auth_handler.render_login_form()
+    auth_handler.render_demo_credentials()
+
+
+@logger.catch
 def main():
-    st.title("Welcome to My Streamlit App")
-    st.write("This is a simple Streamlit application.")
+    """Main application logic - clean and focused."""
+    # ✅ More efficient session init
+    SessionManager.initialize_session()
 
-    # Example input
-    name = st.text_input("Enter your name:")
+    # ✅ Only create PageManager if logged in
+    if st.session_state.logged_in:
+        # ✅ Add session info to sidebar (for debugging)
+        _add_session_debug_info()
 
-    if st.button("Submit"):
-        if name:
-            st.success(f"Hello, {name}!")
+        # ✅ Add logout to sidebar
+        LogoutHandler.add_logout_to_sidebar()
+
+        page_manager = PageManager()
+        user_role = st.session_state.user_role
+        navigation = page_manager.get_navigation_structure(user_role)
+
+        if navigation:
+            pg = st.navigation(navigation)
+            pg.run()
         else:
-            st.error("Please enter your name.")
+            st.error("❌ No pages available for your role.")
+    else:
+        login_page = st.Page(login, title="Log in", icon=":material/login:")
+        pg = st.navigation([login_page])
+        pg.run()
+
+
+def _add_session_debug_info():
+    """Add session debug info to sidebar (development only)."""
+    import os
+
+    # ✅ Only show in development
+    if os.getenv("LOG_LEVEL", "INFO") == "DEBUG":
+        with st.sidebar.expander("🔍 Session Info"):
+            session_info = SessionManager.get_session_info()
+            st.json(session_info)
 
 
 if __name__ == "__main__":
