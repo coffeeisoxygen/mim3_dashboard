@@ -6,15 +6,15 @@ import time
 
 import streamlit as st
 
-from services import get_auth_flow_service
+from services import get_auth_service
 
 
 class LogoutHandler:
     """Handle logout UI only."""
 
     def __init__(self):
-        """Initialize dengan cached auth flow service."""
-        self.auth_flow = get_auth_flow_service()  # ✅ Same cached instance
+        """Initialize dengan cached auth service."""
+        self.auth_service = get_auth_service()  # ✅ Same cached instance
 
     def add_logout_to_sidebar(self) -> None:
         """Add user info dan logout button ke sidebar."""
@@ -53,7 +53,7 @@ class LogoutHandler:
         with col1:
             if st.button("✅ Ya, Logout", type="primary", use_container_width=True):
                 # ✅ Delegate to service
-                success, message = self.auth_flow.perform_logout()
+                success, message = self.auth_service.perform_logout()
 
                 if success:
                     st.success(f"✅ {message}")

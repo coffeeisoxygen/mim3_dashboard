@@ -7,8 +7,8 @@ import streamlit as st
 from config.logging import setup_logging
 from core.us_session import get_current_user
 from database import initialize_database
-from ui.components.auth import AuthHandler
-from ui.components.logout import LogoutHandler
+from ui.components.ui_auth import AuthHandler
+from ui.components.ui_logout import LogoutHandler
 from ui.page_manager import PageManager
 
 

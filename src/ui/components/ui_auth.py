@@ -7,15 +7,15 @@ import time
 import streamlit as st
 
 from core.messages import UIMessages
-from services import get_auth_flow_service
+from services import get_auth_service
 
 
 class AuthHandler:
     """Handle authentication UI only - no business logic."""
 
     def __init__(self):
-        """Initialize dengan cached auth flow service."""
-        self.auth_flow = get_auth_flow_service()  # ✅ Cached instance
+        """Initialize dengan cached auth service."""
+        self.auth_service = get_auth_service()  # ✅ Cached instance
 
     @st.fragment
     def render_login_form(self) -> None:
@@ -27,7 +27,7 @@ class AuthHandler:
 
         if st.button("🔐 Log in", type="primary", use_container_width=True):
             # ✅ Delegate to service, handle UI feedback only
-            success, message = self.auth_flow.perform_login(username, password)
+            success, message = self.auth_service.perform_login(username, password)
 
             if success:
                 st.success(f"{UIMessages.SUCCESS_PREFIX} {message}")  # ✅ Consistent
