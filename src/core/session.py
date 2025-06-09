@@ -5,30 +5,30 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import streamlit as st
 from loguru import logger
+
+from config.paths import AppPaths
 
 
 class SessionManager:
     """Centralized session state management dengan file persistence."""
 
-    SESSION_DIR = Path("temp/sessions")
-    SESSION_DURATION = timedelta(hours=1)  # ✅ 1 hour duration
+    SESSION_DURATION = timedelta(hours=1)
 
     @staticmethod
     def initialize_session() -> None:
         """Initialize session dengan persistence check."""
-        # ✅ Ensure session directory exists
-        SessionManager.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        # ✅ Use centralized path
+        AppPaths.ensure_directories()
 
-        # ✅ Create session ID if not exists
+        # ✅ Get persistent session ID FIRST
         if "session_id" not in st.session_state:
-            st.session_state.session_id = str(uuid.uuid4())[:8]
-            logger.info(f"New session created: {st.session_state.session_id}")
+            st.session_state.session_id = SessionManager._get_or_create_session_id()
+            logger.info(f"Session ID resolved: {st.session_state.session_id}")
 
-        # ✅ Try restore from file first
+        # ✅ Try restore from file (dengan session ID yang benar)
         restored = SessionManager._restore_from_file()
 
         # ✅ Track initialization count
@@ -106,7 +106,8 @@ class SessionManager:
         if not session_id:
             return
 
-        session_file = SessionManager.SESSION_DIR / f"session_{session_id}.json"
+        # ✅ Use centralized path
+        session_file = AppPaths.SESSIONS_DIR / f"session_{session_id}.json"
 
         session_data = {
             "logged_in": st.session_state.logged_in,
@@ -136,7 +137,7 @@ class SessionManager:
         if not session_id:
             return False
 
-        session_file = SessionManager.SESSION_DIR / f"session_{session_id}.json"
+        session_file = AppPaths.SESSIONS_DIR / f"session_{session_id}.json"
 
         if not session_file.exists():
             return False
@@ -177,7 +178,7 @@ class SessionManager:
         if not session_id:
             return
 
-        session_file = SessionManager.SESSION_DIR / f"session_{session_id}.json"
+        session_file = AppPaths.SESSIONS_DIR / f"session_{session_id}.json"
 
         try:
             if session_file.exists():
@@ -189,12 +190,12 @@ class SessionManager:
     @staticmethod
     def cleanup_expired_sessions() -> None:
         """Cleanup expired session files."""
-        if not SessionManager.SESSION_DIR.exists():
+        if not AppPaths.SESSIONS_DIR.exists():
             return
 
         try:
             cleaned = 0
-            for session_file in SessionManager.SESSION_DIR.glob("session_*.json"):
+            for session_file in AppPaths.SESSIONS_DIR.glob("session_*.json"):
                 try:
                     with session_file.open(encoding="utf-8") as f:
                         session_data = json.load(f)
@@ -225,3 +226,33 @@ class SessionManager:
             "username": st.session_state.get("username", ""),
             "login_time": st.session_state.get("login_time"),
         }
+
+    @staticmethod
+    def _get_or_create_session_id() -> str:
+        """Get existing valid session ID or create new one."""
+        if AppPaths.SESSIONS_DIR.exists():
+            # Cari session file yang masih valid
+            for session_file in AppPaths.SESSIONS_DIR.glob("session_*.json"):
+                try:
+                    with session_file.open(encoding="utf-8") as f:
+                        session_data = json.load(f)
+
+                    # Check expiry
+                    expires_at = datetime.fromisoformat(session_data["expires_at"])
+                    if datetime.now() < expires_at:
+                        # ✅ Use existing session ID
+                        session_id = session_file.stem.replace("session_", "")
+                        logger.info(f"Reusing existing session: {session_id}")
+                        return session_id
+                    else:
+                        # Cleanup expired
+                        session_file.unlink()
+
+                except Exception:
+                    # Cleanup corrupted
+                    session_file.unlink()
+
+        # No valid session found
+        new_session_id = str(uuid.uuid4())[:8]
+        logger.info(f"Creating new session: {new_session_id}")
+        return new_session_id

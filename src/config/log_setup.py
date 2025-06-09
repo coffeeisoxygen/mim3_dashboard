@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from pathlib import Path
 
 import streamlit as st
 from loguru import logger
+
+from config.paths import AppPaths
 
 
 class InterceptHandler(logging.Handler):
@@ -33,14 +34,7 @@ class InterceptHandler(logging.Handler):
 
 @st.cache_resource(show_spinner="Mengatur logging...")
 def setup_logging() -> None:
-    """Setup logging terpusat berdasarkan environment variables.
-
-    Environment Variables:
-        LOG_LEVEL: DEBUG, INFO, WARNING, ERROR (default: INFO)
-        LOG_TO_FILE: true/false (default: true)
-        LOG_SEPARATE_ERROR: true/false (default: true)
-    """
-    # Remove existing handlers
+    """Setup logging dengan centralized paths."""
     logger.remove()
 
     # Get config from environment
@@ -73,16 +67,15 @@ def setup_logging() -> None:
     )
 
     if log_to_file:
-        # Ensure logs directory (hardcoded path)
-        log_dir = Path("logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # ✅ Use centralized paths
+        AppPaths.ensure_directories()
 
         # 2. General info logs (untuk dibaca di Streamlit)
         def is_info_success_warning_level(record):
             return record["level"].name in {"INFO", "SUCCESS", "WARNING"}
 
         logger.add(
-            log_dir / "mim3_info.log",
+            AppPaths.INFO_LOG,  # ✅ Centralized
             level="INFO",
             format=file_format,
             rotation="10 MB",
@@ -96,7 +89,7 @@ def setup_logging() -> None:
         if separate_errors:
             # 3. Error logs terpisah (untuk support)
             logger.add(
-                log_dir / "mim3_errors.log",
+                AppPaths.ERROR_LOG,  # ✅ Centralized
                 level="ERROR",
                 format=file_format,
                 rotation="50 MB",
