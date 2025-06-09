@@ -7,7 +7,7 @@ from typing import TypedDict
 import bcrypt
 from loguru import logger
 
-from models.auth import AuthResult, UserLogin, UserRole, UserSession
+from models.md_user import AuthResult, UserLogin, UserRole, UserSession
 
 
 class DemoUserData(TypedDict):

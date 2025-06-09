@@ -3,8 +3,9 @@
 import streamlit as st
 from loguru import logger
 
-from config.log_setup import setup_logging
+from config.logging import setup_logging
 from core.session.manager import SessionManager
+from database import initialize_database
 from ui.components.auth import AuthHandler
 from ui.components.logout import LogoutHandler
 from ui.page_manager import PageManager
@@ -18,6 +19,7 @@ st.set_page_config(
 )
 
 setup_logging()
+initialize_database()
 
 
 @logger.catch
@@ -40,7 +42,7 @@ def main():
 
         # ✅ Create instance
         logout_handler = LogoutHandler()
-        logout_handler.add_logout_to_sidebar()  # Instance method
+        logout_handler.add_logout_to_sidebar()
 
         page_manager = PageManager()
         user_role = st.session_state.user_role

@@ -7,7 +7,7 @@ from loguru import logger
 
 from core.messages import AuthMessages
 from core.session.manager import SessionManager
-from models.auth import UserLogin
+from models.md_user import UserLogin
 
 
 class AuthFlowService:
