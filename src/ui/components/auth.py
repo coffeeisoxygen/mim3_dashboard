@@ -1,69 +1,44 @@
-"""Authentication UI components untuk MIM3 Dashboard."""
+"""Authentication UI components - pure UI logic."""
 
 from __future__ import annotations
 
-import streamlit as st
-from loguru import logger
+import time
 
-from core.session import SessionManager
-from models.auth import UserLogin
-from services.auth_service import AuthService
+import streamlit as st
+
+from services.auth_flow_service import AuthFlowService
 
 
 class AuthHandler:
-    """Handle authentication UI and logic."""
+    """Handle authentication UI only - no business logic."""
 
     def __init__(self):
-        """Initialize auth handler dengan service."""
-        self.auth_service = AuthService()
+        """Initialize dengan auth flow service."""
+        self.auth_flow = AuthFlowService()
 
-    @st.fragment  # ✅ Keep fragment untuk better UX
+    @st.fragment
     def render_login_form(self) -> None:
-        """Render login form dengan validation menggunakan fragment."""
+        """Render login form - pure UI rendering."""
         username = st.text_input("Username", placeholder="Masukkan username")
         password = st.text_input(
             "Password", type="password", placeholder="Masukkan password"
         )
 
         if st.button("🔐 Log in", type="primary", use_container_width=True):
-            self._handle_login(username, password)
+            # ✅ Delegate to service, handle UI feedback only
+            success, message = self.auth_flow.perform_login(username, password)
+
+            if success:
+                st.success(f"✅ {message}")
+                time.sleep(1)  # UI feedback pause
+                st.rerun()
+            else:
+                st.error(f"❌ {message}")
 
     def render_demo_credentials(self) -> None:
-        """Show demo credentials untuk testing."""
+        """Show demo credentials - pure UI component."""
         with st.expander("🔧 Demo Credentials"):
             st.info("**Testing purposes only:**")
             st.write("• **Admin:** admin / admin123")
             st.write("• **User:** user / user123")
             st.write("• **Manager:** manager / manager123")
-
-    def _handle_login(self, username: str, password: str) -> None:
-        """Process login attempt - runs in fragment context."""
-        if not username or not password:
-            st.error("❌ Mohon isi username dan password")
-            return
-
-        try:
-            login_data = UserLogin(username=username, password=password)
-            result = self.auth_service.authenticate(login_data)
-
-            if result.success and result.user_session:
-                SessionManager.set_user_session(
-                    user_id=result.user_session.user_id,
-                    username=result.user_session.username,
-                    role=result.user_session.role,
-                )
-
-                st.success("✅ Login berhasil!")
-
-                # ✅ Brief pause untuk user feedback
-                import time
-
-                time.sleep(1)
-
-                st.rerun()  # Then navigate
-            else:
-                st.error(f"❌ {result.error_message}")
-
-        except Exception as e:
-            logger.error(f"Login error: {e}")
-            st.error(f"❌ Input tidak valid: {e}")

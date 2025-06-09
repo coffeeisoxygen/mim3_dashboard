@@ -4,7 +4,7 @@ import streamlit as st
 from loguru import logger
 
 from config.log_setup import setup_logging
-from core.session import SessionManager
+from core.session.manager import SessionManager
 from ui.components.auth import AuthHandler
 from ui.components.logout import LogoutHandler  # ✅ Import logout handler
 from ui.page_manager import PageManager
@@ -33,8 +33,7 @@ def login():
 @logger.catch
 def main():
     """Main application logic - clean and focused."""
-    # ✅ More efficient session init
-    SessionManager.initialize_session()
+    SessionManager.initialize()
 
     # ✅ Only create PageManager if logged in
     if st.session_state.logged_in:

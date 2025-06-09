@@ -120,3 +120,5 @@ tmp/
 src/_version.py
 .devnote/
 .streamlit/config.toml
+
+temp/
