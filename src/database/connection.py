@@ -7,6 +7,7 @@ import streamlit as st
 from loguru import logger
 from sqlalchemy import text
 
+from config.constants import DBConstants
 from models.md_user import UserCreate
 
 
@@ -16,16 +17,18 @@ def get_connection():
     logger.info("Establishing database connection")
     from config.paths import AppPaths
 
-    conn = st.connection("mim3_db", type="sql", url=AppPaths.DATABASE_URL)
+    conn = st.connection(
+        DBConstants.CON_NAME, type=DBConstants.CON_TYPE, url=AppPaths.DATABASE_URL
+    )
 
     logger.success("Database connection established successfully")
     return conn
 
 
+@st.cache_resource(show_spinner="Initializing database...")
 def initialize_database() -> None:
     """Initialize database tables dan default data."""
-    session_id = getattr(st.session_state, "session_id", "unknown")
-    logger.info(f"Starting database initialization [session: {session_id}]")
+    logger.info("Starting database initialization")
 
     conn = get_connection()
 
@@ -42,7 +45,7 @@ def initialize_database() -> None:
                     description VARCHAR(100),
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+                """)
             )
             logger.debug("Role table created/verified")
 
@@ -60,7 +63,7 @@ def initialize_database() -> None:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (role_id) REFERENCES role (id)
                 )
-            """)
+                """)
             )
             logger.debug("User account table created/verified")
 
@@ -72,7 +75,7 @@ def initialize_database() -> None:
                 ('admin', 'Administrator'),
                 ('operator', 'Sales Operator'),
                 ('team_indosat', 'Indosat Internal Team')
-            """)
+                """)
             )
             logger.debug("Default roles inserted/verified")
 
@@ -97,7 +100,7 @@ def initialize_database() -> None:
                 INSERT OR IGNORE INTO user_account
                 (username, name, password_hash, is_verified, role_id)
                 VALUES (:username, :name, :password_hash, TRUE, :role_id)
-            """),
+                """),
                 {
                     "username": admin_data.username,
                     "name": admin_data.name,
@@ -108,8 +111,8 @@ def initialize_database() -> None:
             logger.debug("Default admin user inserted/verified")
 
             s.commit()
-            logger.success(f"Database initialization completed [session: {session_id}]")
+            logger.success("Database initialization completed")
 
     except Exception as e:
-        logger.error(f"Database initialization failed [session: {session_id}]: {e}")
+        logger.error(f"Database initialization failed: {e}")
         raise

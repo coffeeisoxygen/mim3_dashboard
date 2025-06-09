@@ -6,7 +6,7 @@ import streamlit as st
 from loguru import logger
 
 from core.messages import AuthMessages
-from core.session.manager import SessionManager
+from core.user_session import clear_user_session, set_user_session
 from models.md_user import UserLogin
 
 
@@ -14,10 +14,17 @@ class AuthFlowService:
     """Handle authentication flow - pure business logic."""
 
     def __init__(self):
-        """Initialize dengan auth service."""
-        from .auth_service import AuthService
+        """Initialize tanpa dependency injection."""
+        self._auth_service = None
 
-        self.auth_service = AuthService()
+    @property
+    def auth_service(self):
+        """Lazy load auth service."""
+        if self._auth_service is None:
+            from .auth_service import AuthService
+
+            self._auth_service = AuthService()
+        return self._auth_service
 
     def perform_login(self, username: str, password: str) -> tuple[bool, str]:
         """Handle complete login flow - no UI dependencies.
@@ -39,12 +46,9 @@ class AuthFlowService:
             result = self.auth_service.authenticate(login_data)
 
             if result.success and result.user_session:
-                # ✅ Session management logic
-                SessionManager.login(
-                    user_id=result.user_session.user_id,
-                    username=result.user_session.username,
-                    role=result.user_session.role,
-                )
+                # ✅ Simple one-liner
+                set_user_session(result.user_session)
+                logger.info(f"User login: {result.user_session.username}")
                 return True, AuthMessages.LOGIN_SUCCESS  # ✅ Consistent
             else:
                 return False, result.error_message or AuthMessages.LOGIN_FAILED
@@ -61,7 +65,9 @@ class AuthFlowService:
         """
         try:
             username = st.session_state.get("username", "User")
-            SessionManager.logout()
+            # ✅ Simple one-liner
+            clear_user_session()
+            logger.info(f"User logout: {username}")
             return True, f"{username} {AuthMessages.LOGOUT_SUCCESS}"  # ✅ Consistent
         except Exception as e:
             logger.error(f"Logout error: {e}")

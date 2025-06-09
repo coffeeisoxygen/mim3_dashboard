@@ -7,14 +7,15 @@ import streamlit as st
 from loguru import logger
 from sqlalchemy import text
 
+from config.constants import DBConstants
 from core.messages import AuthMessages
 from models.md_user import AuthResult, UserLogin, UserRole, UserSession
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT, show_spinner="Fetching user data...")
 def get_user_by_username(username: str) -> dict | None:
     """Get user data dari database - function level untuk proper caching."""
-    conn = st.connection("mim3_db", type="sql")
+    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
 
     stmt = text("""
         SELECT u.id, u.username, u.name, u.password_hash,
@@ -24,7 +25,9 @@ def get_user_by_username(username: str) -> dict | None:
         WHERE u.username = :username AND u.is_verified = 1
     """)
 
-    result = conn.query(str(stmt), params={"username": username}, ttl=300)
+    result = conn.query(
+        str(stmt), params={"username": username}, ttl=DBConstants.CACHE_TTL_SHORT
+    )
     return result.iloc[0].to_dict() if len(result) > 0 else None
 
 
@@ -32,15 +35,8 @@ class AuthService:
     """Service untuk menangani authentication logic dengan database."""
 
     def __init__(self):
-        """Initialize auth service dengan database connection."""
-        try:
-            self.conn = st.connection("mim3_db", type="sql")
-            # Test connection
-            test_query = self.conn.query("SELECT 1 as test", ttl=0)
-            logger.success(f"Database connection test: {test_query}")
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            raise
+        """Initialize auth service - no database test."""
+        pass  # ✅ Simple, no eager database calls
 
     def authenticate(self, login_data: UserLogin) -> AuthResult:
         """Authenticate user dengan database lookup."""
