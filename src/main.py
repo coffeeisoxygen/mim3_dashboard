@@ -6,7 +6,7 @@ from loguru import logger
 from config.log_setup import setup_logging
 from core.session.manager import SessionManager
 from ui.components.auth import AuthHandler
-from ui.components.logout import LogoutHandler  # ✅ Import logout handler
+from ui.components.logout import LogoutHandler
 from ui.page_manager import PageManager
 
 # ✅ Streamlit config - must be first
@@ -35,13 +35,12 @@ def main():
     """Main application logic - clean and focused."""
     SessionManager.initialize()
 
-    # ✅ Only create PageManager if logged in
     if st.session_state.logged_in:
-        # ✅ Add session info to sidebar (for debugging)
         _add_session_debug_info()
 
-        # ✅ Add logout to sidebar
-        LogoutHandler.add_logout_to_sidebar()
+        # ✅ Create instance
+        logout_handler = LogoutHandler()
+        logout_handler.add_logout_to_sidebar()  # Instance method
 
         page_manager = PageManager()
         user_role = st.session_state.user_role

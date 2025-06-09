@@ -6,15 +6,36 @@ import time
 
 import streamlit as st
 
-from services.auth_flow_service import AuthFlowService
+from services import get_auth_flow_service
 
 
 class LogoutHandler:
     """Handle logout UI only."""
 
     def __init__(self):
-        """Initialize dengan auth flow service."""
-        self.auth_flow = AuthFlowService()
+        """Initialize dengan cached auth flow service."""
+        self.auth_flow = get_auth_flow_service()  # ✅ Same cached instance
+
+    def add_logout_to_sidebar(self) -> None:
+        """Add user info dan logout button ke sidebar."""
+        st.sidebar.markdown("---")
+
+        username = st.session_state.get("username", "User")
+        role = st.session_state.get("user_role", "user")
+
+        # User info display
+        with st.sidebar.container():
+            st.markdown(f"**👤 {username}**")
+            st.caption(f"🏷️ {role.title()}")
+
+        # Logout button
+        if st.sidebar.button(
+            "🚪 Logout",
+            type="secondary",
+            use_container_width=True,
+            help="Logout dari MIM3 Dashboard",
+        ):
+            self.show_logout_dialog()  # ✅ Call instance method
 
     @st.dialog("Konfirmasi Logout")
     def show_logout_dialog(self) -> None:

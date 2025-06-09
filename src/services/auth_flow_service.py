@@ -5,9 +5,9 @@ from __future__ import annotations
 import streamlit as st
 from loguru import logger
 
+from core.messages import AuthMessages
 from core.session.manager import SessionManager
 from models.auth import UserLogin
-from services.auth_service import AuthService
 
 
 class AuthFlowService:
@@ -15,6 +15,8 @@ class AuthFlowService:
 
     def __init__(self):
         """Initialize dengan auth service."""
+        from .auth_service import AuthService
+
         self.auth_service = AuthService()
 
     def perform_login(self, username: str, password: str) -> tuple[bool, str]:
@@ -27,9 +29,9 @@ class AuthFlowService:
         Returns:
             Tuple of (success: bool, message: str)
         """
-        # ✅ Validation logic
+        # ✅ Consistent validation message
         if not username or not password:
-            return False, "Mohon isi username dan password"
+            return False, AuthMessages.REQUIRED_FIELDS
 
         try:
             # ✅ Authentication logic
@@ -43,14 +45,13 @@ class AuthFlowService:
                     username=result.user_session.username,
                     role=result.user_session.role,
                 )
-
-                return True, "Login berhasil"
+                return True, AuthMessages.LOGIN_SUCCESS  # ✅ Consistent
             else:
-                return False, result.error_message or "Login gagal"
+                return False, result.error_message or AuthMessages.LOGIN_FAILED
 
         except Exception as e:
             logger.error(f"Login error: {e}")
-            return False, f"Input tidak valid: {e}"
+            return False, AuthMessages.SYSTEM_ERROR  # ✅ Consistent
 
     def perform_logout(self) -> tuple[bool, str]:
         """Handle complete logout flow - no UI dependencies.
@@ -61,7 +62,7 @@ class AuthFlowService:
         try:
             username = st.session_state.get("username", "User")
             SessionManager.logout()
-            return True, f"{username} berhasil logout"
+            return True, f"{username} {AuthMessages.LOGOUT_SUCCESS}"  # ✅ Consistent
         except Exception as e:
             logger.error(f"Logout error: {e}")
-            return False, "Terjadi kesalahan saat logout"
+            return False, AuthMessages.SYSTEM_ERROR  # ✅ Consistent

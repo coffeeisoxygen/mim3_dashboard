@@ -6,15 +6,16 @@ import time
 
 import streamlit as st
 
-from services.auth_flow_service import AuthFlowService
+from core.messages import UIMessages
+from services import get_auth_flow_service
 
 
 class AuthHandler:
     """Handle authentication UI only - no business logic."""
 
     def __init__(self):
-        """Initialize dengan auth flow service."""
-        self.auth_flow = AuthFlowService()
+        """Initialize dengan cached auth flow service."""
+        self.auth_flow = get_auth_flow_service()  # ✅ Cached instance
 
     @st.fragment
     def render_login_form(self) -> None:
@@ -29,11 +30,11 @@ class AuthHandler:
             success, message = self.auth_flow.perform_login(username, password)
 
             if success:
-                st.success(f"✅ {message}")
+                st.success(f"{UIMessages.SUCCESS_PREFIX} {message}")  # ✅ Consistent
                 time.sleep(1)  # UI feedback pause
                 st.rerun()
             else:
-                st.error(f"❌ {message}")
+                st.error(f"{UIMessages.ERROR_PREFIX} {message}")  # ✅ Consistent
 
     def render_demo_credentials(self) -> None:
         """Show demo credentials - pure UI component."""

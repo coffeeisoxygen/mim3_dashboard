@@ -51,3 +51,15 @@ class SessionManager:
             session_file.unlink(missing_ok=True)
 
         logger.info(f"User logout: {username}")
+
+    @staticmethod
+    def get_session_info() -> dict:
+        """Get current session info - for debugging."""
+        return {
+            "session_id": st.session_state.get("session_id"),
+            "logged_in": st.session_state.get("logged_in", False),
+            "user_id": st.session_state.get("user_id"),
+            "username": st.session_state.get("username"),
+            "user_role": st.session_state.get("user_role"),
+            "login_time": st.session_state.get("login_time"),
+        }
