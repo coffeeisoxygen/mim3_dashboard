@@ -9,8 +9,10 @@ from sqlalchemy import text
 from config.constants import DBConstants
 
 
-@st.cache_resource(show_spinner="Creating database tables...")
-def create_tables() -> None:
+@st.cache_data(
+    ttl=3600, show_spinner="Creating database tables..."
+)  # ✅ Use cache_data
+def create_tables() -> bool:
     """Create database tables if not exist - pure infrastructure."""
     logger.info("Creating database tables")
 
@@ -68,7 +70,9 @@ def create_tables() -> None:
             )
 
             s.commit()
-            logger.success("Database tables created/verified successfully")
+
+        logger.success("Database tables created/verified successfully")
+        return True  # ✅ Return success indicator
 
     except Exception as e:
         logger.error(f"Error creating tables: {e}")
@@ -78,7 +82,7 @@ def create_tables() -> None:
 def initialize_database() -> None:
     """Initialize database infrastructure only."""
     logger.info("Initializing database infrastructure")
-    create_tables()
+    success = create_tables()  # ✅ Cache akan skip re-execution  # noqa: F841
     logger.info("Database infrastructure ready")
 
 

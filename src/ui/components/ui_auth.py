@@ -6,9 +6,10 @@ from __future__ import annotations
 import time
 
 import streamlit as st
+from loguru import logger
 
 from core.messages import UIMessages
-from services import get_auth_service
+from services.auth_service import AuthService
 
 
 class AuthHandler:
@@ -16,35 +17,45 @@ class AuthHandler:
 
     def __init__(self):
         """Initialize dengan cached auth service."""
-        self.auth_service = get_auth_service()  # ✅ Cached instance
+        self.auth_service = AuthService()
 
-    @st.fragment
     def render_login_form(self) -> None:
-        """Render login form - pure UI rendering."""
+        """Render login form dengan optimized fragment."""
+        # ✅ Static content outside fragment
         username = st.text_input("Username", placeholder="Masukkan username")
         password = st.text_input(
             "Password", type="password", placeholder="Masukkan password"
         )
 
+        # ✅ Only interactive logic inside fragment
+        self._render_login_buttons(username, password)
+
+    @st.fragment
+    def _render_login_buttons(self, username: str, password: str) -> None:
+        """Fragment hanya untuk button interactions."""
         col1, col2 = st.columns(2)
 
         with col1:
             if st.button("🔐 Log in", type="primary", use_container_width=True):
-                # ✅ Delegate to service, handle UI feedback only
+                # ✅ Reduced logging - only for actual clicks
+                logger.info(f"Login attempt: {username}")
+
+                if not username or not password:
+                    st.error("❌ Username dan password harus diisi")
+                    return
+
                 success, message = self.auth_service.perform_login(username, password)
 
                 if success:
-                    st.success(
-                        f"{UIMessages.SUCCESS_PREFIX} {message}"
-                    )  # ✅ Consistent
-                    time.sleep(1)  # UI feedback pause
+                    st.success(f"{UIMessages.SUCCESS_PREFIX} {message}")
+                    time.sleep(1)
                     st.rerun()
                 else:
-                    st.error(f"{UIMessages.ERROR_PREFIX} {message}")  # ✅ Consistent
+                    st.error(f"{UIMessages.ERROR_PREFIX} {message}")
 
         with col2:
             if st.button("📝 Register", use_container_width=True):
-                self.show_register_dialog()  # ✅ Same pattern as logout
+                self.show_register_dialog()
 
     @st.dialog("Daftar Akun Baru")
     def show_register_dialog(self) -> None:

@@ -7,7 +7,7 @@ from core.app import App
 
 st.set_page_config(
     page_title="MIM3 Dashboard",
-    page_icon="📊",
+    page_icon=":streamlit:",
     layout="wide",
     initial_sidebar_state="expanded",
 )

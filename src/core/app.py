@@ -14,12 +14,39 @@ from ui.components.ui_logout import LogoutHandler
 from ui.page_manager import PageManager
 
 
+@st.cache_resource(show_spinner="🚀 Initializing MIM3 Dashboard...")
+def _initialize_app_once() -> bool:
+    """Initialize app components sekali saja per Streamlit session."""
+    try:
+        # Step 1: Basic infrastructure
+        setup_logging()
+        logger.info("Starting MIM3 Dashboard...")
+
+        # Step 2: Database infrastructure
+        initialize_database()
+
+        # Step 3: System bootstrap
+        if not ensure_system_ready():
+            logger.error("System bootstrap failed")
+            return False
+
+        logger.success("MIM3 Dashboard initialized successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"App initialization failed: {e}")
+        return False
+
+
 class App:
     """Main application class - handle complete app lifecycle."""
 
     def run(self) -> None:
         """Run the application main loop."""
-        if not self._initialize():
+        # ✅ Cache resource ensures this runs only once
+        try:
+            _initialize_app_once()
+        except Exception:
             self._render_bootstrap_error()
             return
 
@@ -30,28 +57,6 @@ class App:
             self._render_authenticated_app()
         else:
             self._render_login_page()
-
-    def _initialize(self) -> bool:
-        """Initialize app components dengan proper error handling."""
-        try:
-            # Step 1: Basic infrastructure
-            setup_logging()
-            logger.info("Starting MIM3 Dashboard...")
-
-            # Step 2: Database infrastructure (tables only)
-            initialize_database()
-
-            # Step 3: Business logic bootstrap (roles + admin)
-            if not ensure_system_ready():
-                logger.error("System bootstrap failed")
-                return False
-
-            logger.success("MIM3 Dashboard initialized successfully")
-            return True
-
-        except Exception as e:
-            logger.error(f"App initialization failed: {e}")
-            return False
 
     def _setup_session_state(self) -> None:
         """Setup session state dengan current user check."""
@@ -75,9 +80,16 @@ class App:
 
     def _render_authenticated_app(self) -> None:
         """Render app untuk user yang sudah login."""
-        LogoutHandler().add_logout_to_sidebar()
+        # ✅ Add logout handler hanya sekali per session
+        if "logout_handler_added" not in st.session_state:
+            LogoutHandler().add_logout_to_sidebar()
+            st.session_state.logout_handler_added = True
 
-        page_manager = PageManager()
+        # ✅ Cache page manager
+        if "page_manager" not in st.session_state:
+            st.session_state.page_manager = PageManager()
+
+        page_manager = st.session_state.page_manager
         navigation = page_manager.get_navigation_structure(st.session_state.user_role)
 
         if navigation:

@@ -1,9 +1,11 @@
 """class untuk mengelola halaman dinamis pada MIM3 Dashboard"""
 
+import time
 from dataclasses import dataclass
 from enum import Enum
 
 import streamlit as st
+from loguru import logger
 
 
 class PageCategory(Enum):
@@ -168,6 +170,13 @@ class PageManager:
                 category=PageCategory.ACCOUNT,
                 description="User profile management",
             ),
+            "logout": PageConfig(
+                file_path=None,  # Special case - handled by callback # type: ignore
+                title="Logout",
+                icon=":material/logout:",
+                category=PageCategory.ACCOUNT,
+                description="Logout from dashboard",
+            ),
         }
 
     def get_pages_by_category(
@@ -196,12 +205,21 @@ class PageManager:
                 st_pages = []
                 for key, config in pages.items():
                     try:
-                        page = st.Page(
-                            config.file_path,
-                            title=config.title,
-                            icon=config.icon,
-                            default=(key == "dashboard"),  # Dashboard sebagai default
-                        )
+                        # ✅ Special handling for logout
+                        if key == "logout":
+                            page = st.Page(
+                                self._logout_handler,  # Method callback
+                                title=config.title,
+                                icon=config.icon,
+                            )
+                        else:
+                            # Regular page loading
+                            page = st.Page(
+                                config.file_path,
+                                title=config.title,
+                                icon=config.icon,
+                                default=(key == "dashboard"),
+                            )
                         st_pages.append(page)
                     except Exception as e:
                         st.error(f"Error loading page {config.title}: {e}")
@@ -214,3 +232,51 @@ class PageManager:
     def get_page_info(self, page_key: str) -> PageConfig | None:
         """Get page configuration by key"""
         return self.pages.get(page_key)
+
+    @logger.catch
+    def _logout_handler(self):
+        """Handle logout page dengan confirmation."""
+        st.title("🚪 Logout Confirmation")
+
+        username = st.session_state.get("username", "User")
+        role = st.session_state.get("user_role", "user")
+
+        # User info
+        st.info(f"👤 **{username}** ({role.title()})")
+        st.write("Yakin ingin logout dari MIM3 Dashboard?")
+
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col2:
+            if st.button("✅ Ya, Logout", type="primary", use_container_width=True):
+                self._perform_logout()
+
+            if st.button("❌ Batal", use_container_width=True):
+                # Redirect ke dashboard
+                st.switch_page("ui/pages/dashboard/pg_dashboard.py")
+
+    def _perform_logout(self):
+        """Perform actual logout operation."""
+        try:
+            from services.auth_service import AuthService
+
+            auth_service = AuthService()
+            success, message = auth_service.perform_logout()
+
+            if success:
+                st.success(f"✅ {message}")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error(f"❌ {message}")
+
+        except Exception as e:
+            logger.error(f"Logout error: {e}")
+            # Fallback: clear session state manually
+            for key in ["logged_in", "username", "user_role", "session_token"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+
+            st.success("✅ Logged out successfully")
+            time.sleep(1)
+            st.rerun()

@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, Field
 
+import zoneinfo
+
 
 class SessionCreate(BaseModel):
     """Model untuk create session di database."""
@@ -23,12 +25,20 @@ class SessionCreate(BaseModel):
         cls, user_id: int, hours: int = 8, request_info: dict | None = None
     ) -> SessionCreate:
         """Create new session dengan auto-generated token dan expiry."""
+        # ✅ Fix timezone issue
+        try:
+            local_tz = zoneinfo.ZoneInfo("Asia/Jakarta")
+            current_time = datetime.now(local_tz)
+        except Exception:
+            # Fallback untuk Windows
+            current_time = datetime.now()
+
         return cls(
             user_id=user_id,
             session_token=secrets.token_urlsafe(32),  # Generate token di sini
             ip_address=request_info.get("ip_address") if request_info else None,
             user_agent=request_info.get("user_agent") if request_info else None,
-            expires_at=datetime.now() + timedelta(hours=hours),
+            expires_at=current_time + timedelta(hours=hours),  # ✅ Local time
         )
 
     model_config = ConfigDict(str_strip_whitespace=True)

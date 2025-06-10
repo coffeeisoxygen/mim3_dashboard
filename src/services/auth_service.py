@@ -33,29 +33,32 @@ class AuthService:
         return AuthService.verify_password(raw_password, user_data.password_hash)
 
     def perform_login(self, username: str, password: str) -> tuple[bool, str]:
-        """Handle complete login flow."""
-        # Basic validation
-        if not username or not password:
-            return False, AuthMessages.REQUIRED_FIELDS
-
+        """Perform login dengan enhanced error logging."""
         try:
-            # Get user data
-            user_data = get_user_by_username(username)
-            if not user_data:
-                return False, AuthMessages.LOGIN_FAILED
+            logger.debug(f"Auth service: performing login for {username}")
 
-            # Verify password
-            if not self.verify_password(password, user_data.password_hash):
-                logger.warning(f"Invalid password: {username}")
-                return False, AuthMessages.LOGIN_FAILED
+            # Step 1: Get user from database
+            user = get_user_by_username(username)  # ← Check ini dulu
+            logger.debug(f"User found: {user is not None}")
 
-            # Create session
+            if not user:
+                logger.debug("User not found in database")
+                return False, "Username atau password salah"
+
+            # Step 2: Verify password
+            logger.debug("Verifying password...")
+            if not self.verify_password(password, user.password_hash):
+                logger.debug("Password verification failed")
+                return False, "Username atau password salah"
+
+            # Step 3: Create session
+            logger.debug("Creating user session...")
             user_session = ActiveSession(
-                user_id=user_data.id,
-                username=user_data.username,
-                name=user_data.name,
-                role_id=user_data.role_id,
-                role_name=user_data.role_name,
+                user_id=user.id,
+                username=user.username,
+                name=user.name,
+                role_id=user.role_id,
+                role_name=user.role_name,
                 session_token=None,
             )
 
@@ -65,16 +68,22 @@ class AuthService:
                 user_session,
                 {"ip_address": "127.0.0.1", "user_agent": "Streamlit Dashboard"},
             )
+            logger.debug(f"Session creation result: {session_result.success}")
 
+            # ✅ Enhanced logging untuk debug session creation
             if not session_result.success:
-                return False, session_result.message
+                logger.error(f"Session creation failed: {session_result.message}")
+                logger.error(
+                    f"Session error details: {session_result}"
+                )  # ← Debug detail
+                return False, "Error saat membuat session"
 
             logger.info(f"Login successful: {username}")
             return True, AuthMessages.LOGIN_SUCCESS
 
         except Exception as e:
-            logger.error(f"Login error: {e}")
-            return False, AuthMessages.SYSTEM_ERROR
+            logger.error(f"Auth service error: {e}")
+            return False, "Terjadi kesalahan sistem"  # ← Generic error
 
     def perform_logout(self) -> tuple[bool, str]:
         """Handle complete logout flow."""

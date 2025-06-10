@@ -120,11 +120,21 @@ class SessionService:
         self, user_session: ActiveSession, request_info: dict | None
     ) -> SessionCreate:
         """Prepare session data dengan request info."""
-        return SessionCreate.create_new(
+        logger.debug(f"Preparing session data for user_id: {user_session.user_id}")
+        logger.debug(f"Request info: {request_info}")
+
+        session_data = SessionCreate.create_new(
             user_id=user_session.user_id,
             hours=8,  # 8 jam kerja
             request_info=request_info,
         )
+
+        logger.debug(
+            f"Session data prepared: token={session_data.session_token[:10]}..."
+        )
+        logger.debug(f"Expires at: {session_data.expires_at}")
+
+        return session_data
 
     # PINNED: Phase 2 - Admin session monitoring
     # TODO: get_active_sessions() untuk admin monitoring

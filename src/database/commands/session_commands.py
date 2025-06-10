@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zoneinfo
 from datetime import datetime
 
 import streamlit as st
@@ -17,14 +18,36 @@ from database.definitions import (
 from models.session.session_db import SessionCreate, SessionResult, SessionValidation
 
 
-@st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT, show_spinner="Creating session...")
-def create_session(session_data: SessionCreate) -> SessionResult:
-    """Create database session - return SessionResult."""
+# ✅ Helper function untuk consistent timezone
+def get_local_now() -> datetime:
+    """Get current datetime dengan timezone Indonesia."""
     try:
+        # Windows-compatible timezone
+        local_tz = zoneinfo.ZoneInfo("Asia/Jakarta")
+        return datetime.now(local_tz)
+    except Exception:
+        # Fallback untuk Windows yang tidak support zoneinfo
+        return datetime.now()
+
+
+# ❌ Remove caching for session creation
+# @st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT, show_spinner="Creating session...")
+def create_session(session_data: SessionCreate) -> SessionResult:
+    """Create database session - NO CACHING for unique operations."""
+    try:
+        logger.debug(f"Creating session for user_id: {session_data.user_id}")
+        logger.debug(f"Token: {session_data.session_token[:10]}...")
+
         conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
         session_table = get_session_table_definition()
 
+        # ✅ Simple datetime without timezone complexity
+        current_time = datetime.now()
+
         with conn.session as s:
+            logger.debug(f"Session expires at: {session_data.expires_at}")
+            logger.debug(f"Current time: {current_time}")
+
             # Insert session ke database
             insert_stmt = session_table.insert().values(
                 user_id=session_data.user_id,
@@ -32,14 +55,19 @@ def create_session(session_data: SessionCreate) -> SessionResult:
                 ip_address=session_data.ip_address,
                 user_agent=session_data.user_agent,
                 expires_at=session_data.expires_at,
-                created_at=datetime.now(),
-                last_activity=datetime.now(),
+                created_at=current_time,
+                last_activity=current_time,
                 is_active=True,
             )
 
             result = s.execute(insert_stmt)
             session_id = result.lastrowid
+            logger.debug(
+                f"Insert executed: session_id={session_id}, rowcount={result.rowcount}"
+            )
+
             s.commit()
+            logger.debug("Transaction committed successfully")
 
             logger.info(f"Database session created: ID {session_id}")
             return SessionResult.success_result(
@@ -50,7 +78,7 @@ def create_session(session_data: SessionCreate) -> SessionResult:
 
     except Exception as e:
         logger.error(f"Failed to create database session: {e}")
-        return SessionResult.error_result("Gagal membuat database session")
+        return SessionResult.error_result(f"Gagal membuat database session: {e!s}")
 
 
 def deactivate_session(session_token: str) -> bool:
@@ -81,9 +109,15 @@ def deactivate_session(session_token: str) -> bool:
         return False
 
 
-@st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT, show_spinner="Validating session...")
+@st.cache_data(
+    ttl=DBConstants.CACHE_TTL_FAST, show_spinner=False
+)  # ✅ No spinner for fast operations
 def get_session_by_token(session_token: str) -> SessionValidation:
     """Get session with user info untuk validation."""
+    # ✅ Add early return untuk performance
+    if not session_token or len(session_token) < 10:
+        return SessionValidation.invalid_session("Token tidak valid")
+
     try:
         conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
         session_table = get_session_table_definition()
