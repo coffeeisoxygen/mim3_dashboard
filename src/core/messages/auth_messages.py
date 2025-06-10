@@ -13,11 +13,17 @@ class AuthMessages:
     # Authentication messages
     LOGIN_SUCCESS = "Login berhasil"
     LOGIN_FAILED = "Username atau password salah"
+    USERNAME_NOT_FOUND = "Username tidak ditemukan"
+    WRONG_PASSWORD = "Password salah"  # noqa: S105
+    ACCOUNT_DISABLED = "Akun telah dinonaktifkan"
+    TOO_MANY_ATTEMPTS = "Terlalu banyak percobaan login, coba lagi nanti"
     LOGOUT_SUCCESS = "Logout berhasil"
 
     # System messages
     SYSTEM_ERROR = "Terjadi kesalahan sistem"
     SESSION_EXPIRED = "Sesi telah berakhir"
+    SESSION_INVALID = "Sesi tidak valid"
+    DATABASE_ERROR = "Terjadi kesalahan pada database"
 
 
 class UIMessages:

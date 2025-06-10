@@ -15,6 +15,7 @@ class DBConstants:
     CACHE_TTL_SHORT = 300  # 5 menit
     CACHE_TTL_MEDIUM = 1800  # 30 menit
     CACHE_TTL_LONG = 3600  # 1 jam
+    CACHE_TTL_FAST = 60  # 1 menit untuk session validation
 
 
 class LogConstants:

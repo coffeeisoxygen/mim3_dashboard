@@ -1,34 +1,34 @@
 """User models package - Clean imports untuk semua user schemas."""
-
-# Authentication schemas
-from .us_auth import AuthResult, UserLogin, UserRole, UserSession
-
-# CRUD schemas
-from .us_crud import UserCreate, UserResponse, UserUpdate
-
-# Password management schemas
-from .us_password import AdminResetPassword, PasswordResetResult, UserChangePassword
-
-# Admin operations schemas
-from .us_admin import BulkUserVerification, UserVerification, VerificationResult
+from .us_onauth import (
+    LoginResult,
+    AccountLogin,
+    ActiveSession,
+)
+from .us_onboard import (
+    AccountRegister,
+    PendingAccount,
+    AccountApproval,
+    ApprovalResult,
+)
+from .us_onprofile import (
+    ProfileView,
+    ProfileUpdate,
+    PasswordChange,
+    AccountStatus,
+    ProfileUpdateResult,
+)
 
 __all__ = [
-    # Types
-    "UserRole",
-    # Authentication
-    "UserLogin",
-    "UserSession",
-    "AuthResult",
-    # CRUD
-    "UserCreate",
-    "UserUpdate",
-    "UserResponse",
-    # Password Management
-    "UserChangePassword",
-    "AdminResetPassword",
-    "PasswordResetResult",
-    # Admin Operations
-    "UserVerification",
-    "BulkUserVerification",
-    "VerificationResult",
+    "LoginResult",
+    "AccountLogin",
+    "ActiveSession",
+    "ProfileView",
+    "ProfileUpdate",
+    "PasswordChange",
+    "AccountStatus",
+    "ProfileUpdateResult",
+    "AccountRegister",
+    "PendingAccount",
+    "AccountApproval",
+    "ApprovalResult",
 ]

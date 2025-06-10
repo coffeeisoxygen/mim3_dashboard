@@ -234,7 +234,7 @@ messageFormat = "%(asctime)s [%(levelname)s] (%(process)d, %(thread)d) %(name)s:
 # with no active websocket connection at any point after this time has passed.
 
 # Default: 120
-# disconnectedSessionTTL = 120
+disconnectedSessionTTL = 3600
 
 # Server certificate file for connecting via HTTPS.
 # Must be set at the same time as "server.sslKeyFile".

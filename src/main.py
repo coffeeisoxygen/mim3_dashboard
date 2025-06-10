@@ -1,6 +1,7 @@
 """main.py - Entry point for the MIM3 Dashboard application."""
 
 import streamlit as st
+from dotenv import load_dotenv
 
 from core.app import App
 
@@ -11,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ✅ Single import
+load_dotenv(override=True)  # Load environment variables from .env file
 
 
 def main():
