@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from loguru import logger
 
-from database.commands.session_commands import create_session, deactivate_session
-from models.session.session_db import SessionCreate, SessionResult
+from database.commands.session_commands import (
+    create_session,
+    deactivate_session,
+    get_session_by_token,
+    is_session_expired,
+    update_session_activity,
+)
+from models.session.session_db import SessionCreate, SessionResult, SessionValidation
 from models.session.session_st import clear_user_session, set_user_session
 from models.user.user_auth import ActiveSession
 
@@ -13,6 +19,7 @@ from models.user.user_auth import ActiveSession
 class SessionService:
     """Service untuk hybrid session management - orchestrates DB + Streamlit."""
 
+    @logger.catch
     def create_user_session(
         self, user_session: ActiveSession, request_info: dict | None = None
     ) -> SessionResult:
@@ -27,16 +34,28 @@ class SessionService:
                 logger.warning(f"Database session creation failed: {db_result.message}")
                 return db_result
 
-            # Step 3: Update ActiveSession dengan token dari database
+            # Step 3: Validate session_id exists
+            if db_result.session_id is None:
+                logger.error("Database session created but session_id is None")
+                return SessionResult.error_result(
+                    "Error sistem: session_id tidak valid"
+                )
+
+            # Step 4.5: Validate token exists
+            if db_result.token is None:
+                logger.error("Database session created but token is None")
+                return SessionResult.error_result("Error sistem: token tidak valid")
+
+            # Step 5: Update ActiveSession dengan token dari database
             user_session.session_token = db_result.token
 
-            # Step 4: Set Streamlit session state
+            # Step 6: Set Streamlit session state
             set_user_session(user_session)
 
             logger.info(f"Hybrid session created for user: {user_session.username}")
             return SessionResult.success_result(
-                session_id=db_result.session_id,
-                token=db_result.token,
+                session_id=db_result.session_id,  # Now guaranteed to be int
+                token=db_result.token,  # Now guaranteed to be str
                 message="Hybrid session berhasil dibuat",
             )
 
@@ -44,13 +63,38 @@ class SessionService:
             logger.error(f"Failed to create hybrid session: {e}")
             return SessionResult.error_result("Error sistem saat membuat session")
 
-    def clear_user_session(self, session_token: str | None = None) -> bool:
+    def validate_session(self, session_token: str | None) -> SessionValidation:
+        """Validate session dengan complete check - untuk middleware."""
+        if not session_token:
+            return SessionValidation.invalid_session("Token tidak ada")
+
+        # Delegate ke database command
+        return get_session_by_token(session_token)
+
+    def refresh_session(self, session_token: str | None) -> bool:
+        """Refresh session activity untuk keep alive."""
+        if not session_token:
+            return False
+
+        # Quick expire check first (cached)
+        if is_session_expired(session_token):
+            logger.info(f"Session expired, cannot refresh: {session_token[:10]}...")
+            return False
+
+        # Update activity
+        success = update_session_activity(session_token)
+        if success:
+            logger.debug(f"Session refreshed: {session_token[:10]}...")
+
+        return success
+
+    def clear_session(self, session_token: str | None = None) -> bool:
         """Clear hybrid session dengan graceful handling."""
         logger.debug(f"Starting session clear - Token: {bool(session_token)}")
 
         try:
             # Step 1: Clear Streamlit session (always safe)
-            clear_user_session()
+            clear_user_session()  # ✅ Call function dari session_st
             logger.debug("Streamlit session cleared")
 
             # Step 2: Deactivate database session (if token exists)
@@ -70,19 +114,17 @@ class SessionService:
 
         except Exception as e:
             logger.error(f"Session clear error: {e}")
-            # Return True karena Streamlit session udah clear (partial success)
-            return True
+            return True  # Partial success - Streamlit cleared
 
     def _prepare_session_data(
         self, user_session: ActiveSession, request_info: dict | None
     ) -> SessionCreate:
         """Prepare session data dengan request info."""
-        session_data = SessionCreate.create_new(
+        return SessionCreate.create_new(
             user_id=user_session.user_id,
             hours=8,  # 8 jam kerja
             request_info=request_info,
         )
-        return session_data
 
     # PINNED: Phase 2 - Admin session monitoring
     # TODO: get_active_sessions() untuk admin monitoring

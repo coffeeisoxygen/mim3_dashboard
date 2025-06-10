@@ -10,7 +10,7 @@ from sqlalchemy import insert, select
 
 from config.constants import DBConstants
 from database.definitions import get_role_table_definition
-from models.role.role_schemas import RoleCreate, RoleView
+from models.role.role_schemas import RoleCreate, RoleView, SystemRoleCreate
 
 
 @st.cache_data(ttl=DBConstants.CACHE_TTL_LONG, show_spinner="Loading roles...")
@@ -121,3 +121,57 @@ def create_role(role_data: RoleCreate) -> tuple[bool, str]:
         else:
             logger.error(f"Failed to create role {role_data.name}: {e}")
             return False, f"Failed to create role: {e!s}"
+
+
+def seed_system_roles(roles: list[SystemRoleCreate]) -> bool:
+    """Seed system roles without validation dengan enhanced logging."""
+    logger.debug(f"seed_system_roles called with {len(roles)} roles")
+
+    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+    role_table = get_role_table_definition()
+
+    created_count = 0
+    skipped_count = 0
+
+    try:
+        with conn.session as s:
+            for role in roles:
+                logger.debug(f"Processing role: {role.name}")
+
+                try:
+                    stmt = insert(role_table).values(
+                        name=role.name,
+                        description=role.description,
+                        is_active=True,
+                        created_at=datetime.now(),
+                    )
+                    result = s.execute(stmt)  # noqa: F841
+                    created_count += 1
+                    logger.debug(f"✅ Role created: {role.name}")
+
+                except Exception as role_error:
+                    if "UNIQUE constraint failed" in str(role_error):
+                        skipped_count += 1
+                        logger.debug(f"⏭️ Role already exists, skipping: {role.name}")
+                    else:
+                        logger.error(
+                            f"❌ Failed to create role {role.name}: {role_error}"
+                        )
+                        return False
+
+            s.commit()
+
+            # Summary logging
+            if created_count > 0:
+                logger.info(f"✅ System roles created: {created_count}")
+            if skipped_count > 0:
+                logger.info(f"⏭️ Roles already existed: {skipped_count}")
+
+            logger.info(
+                f"Seed completed: {created_count} created, {skipped_count} skipped"
+            )
+            return True
+
+    except Exception as e:
+        logger.error(f"❌ System error in seed_system_roles: {e}")
+        return False

@@ -10,6 +10,7 @@ USER_TABLE = table(
     column("password_hash"),
     column("role_id"),
     column("is_verified"),
+    column("is_active"),
     column("created_at"),
     column("updated_at"),
 )

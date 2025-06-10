@@ -90,40 +90,50 @@ def get_user_by_id(user_id: int) -> User | None:
 
 
 def create_user(user_data: UserCreate) -> OperationResult:
-    """Create new user - admin operation."""
+    """Create new user - admin operation dengan enhanced error logging."""
     try:
         conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
         user_table = get_user_table_definition()
 
         # Hash password
+        logger.debug(f"Hashing password for user: {user_data.username}")
         password_hash = bcrypt.hashpw(
             user_data.password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
+        logger.debug("Password hashed successfully")
 
         with conn.session as s:
+            # Check existing user
+            logger.debug(f"Checking if username exists: {user_data.username}")
             check_stmt = select(user_table.c.id).where(
                 user_table.c.username == user_data.username
             )
             existing = s.execute(check_stmt).fetchone()
 
             if existing:
+                logger.debug(f"Username already exists: {user_data.username}")
                 return OperationResult(
                     success=False, message=f"Username '{user_data.username}' sudah ada"
                 )
 
             # Insert new user
+            logger.debug(f"Inserting new user: {user_data.username}")
             insert_stmt = user_table.insert().values(
                 username=user_data.username,
                 name=user_data.name,
                 password_hash=password_hash,
                 role_id=user_data.role_id,
                 is_verified=user_data.is_verified,
-                is_active=True,
+                is_active=user_data.is_active,  # ✅ Add this back - column exists!
                 created_at=user_data.created_at,
+                updated_at=user_data.created_at,
             )
 
-            s.execute(insert_stmt)
+            result = s.execute(insert_stmt)
+            logger.debug(f"Insert executed, rows affected: {result.rowcount}")
+
             s.commit()
+            logger.debug("Transaction committed successfully")
 
             logger.info(f"User created: {user_data.username}")
             return OperationResult(
@@ -131,8 +141,8 @@ def create_user(user_data: UserCreate) -> OperationResult:
             )
 
     except Exception as e:
-        logger.error(f"Failed to create user: {e}")
-        return OperationResult(success=False, message="Gagal membuat user")
+        logger.error(f"Failed to create user {user_data.username}: {e}")
+        return OperationResult(success=False, message=f"Error creating user: {e!s}")
 
 
 def update_user(user_id: int, user_data: UserUpdate) -> OperationResult:
@@ -337,3 +347,67 @@ def verify_user(user_id: int) -> OperationResult:
     except Exception as e:
         logger.error(f"Failed to verify user {user_id}: {e}")
         return OperationResult(success=False, message="Gagal memverifikasi user")
+
+
+def unverify_user(user_id: int) -> OperationResult:
+    """Unverify user account."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        with conn.session as s:
+            # Check user exists
+            check_stmt = select(user_table.c.username, user_table.c.is_verified).where(
+                user_table.c.id == user_id
+            )
+            existing = s.execute(check_stmt).fetchone()
+
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
+
+            username, is_verified = existing
+
+            if not is_verified:
+                return OperationResult(
+                    success=False, message=f"User '{username}' belum terverifikasi"
+                )
+
+            # Unverify user
+            update_stmt = (
+                update(user_table)
+                .where(user_table.c.id == user_id)
+                .values(is_verified=False, updated_at=datetime.now())
+            )
+            s.execute(update_stmt)
+            s.commit()
+
+            logger.info(f"User unverfied: {username}")
+            return OperationResult(
+                success=True,
+                message=f"User '{username}' berhasil dinonaktifkan verifikasinya",
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to unverify user {user_id}: {e}")
+        return OperationResult(
+            success=False, message="Gagal menonaktifkan verifikasi user"
+        )
+
+
+def has_any_admin_user() -> bool:
+    """Check if there is any admin user in the system."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        with conn.session as s:
+            stmt = select(user_table.c.id).where(
+                (user_table.c.role_id == 1) & (user_table.c.is_active)
+            )
+            result = s.execute(stmt).fetchone()
+
+        return result is not None
+
+    except Exception as e:
+        logger.error(f"Failed to check admin users: {e}")
+        return False

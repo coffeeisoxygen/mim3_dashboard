@@ -81,7 +81,7 @@ class AuthService:
         try:
             session_token = st.session_state.get("session_token")
             session_service = SessionService()
-            success = session_service.clear_user_session(session_token)
+            success = session_service.clear_session(session_token)
 
             if success:
                 logger.info("Logout successful")

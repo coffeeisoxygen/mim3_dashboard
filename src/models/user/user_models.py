@@ -36,6 +36,9 @@ class UserCreate(BaseModel):
     is_verified: bool = Field(
         default=True, description="Auto-verify untuk admin creation"
     )
+    is_active: bool = Field(
+        default=True, description="Auto-active untuk admin creation"
+    )  # ✅ Tambah ini
     created_at: datetime = Field(
         default_factory=datetime.now, description="Waktu pembuatan"
     )

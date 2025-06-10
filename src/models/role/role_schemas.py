@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -26,6 +27,11 @@ class RoleCreate(BaseModel):
         system_roles = ["admin", "operator", "support"]
         if v in system_roles:
             raise ValueError(f"Role '{v}' adalah system role, tidak bisa dibuat ulang")
+        logger.debug(f"Validating role name: {v}")
+        if not v.islower() or not v.isidentifier():
+            raise ValueError(
+                "Role name harus lowercase dan hanya mengandung huruf, angka, dan underscore"
+            )
         return v.lower()
 
 
