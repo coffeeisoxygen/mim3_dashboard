@@ -7,98 +7,83 @@ from loguru import logger
 from database.commands.session_commands import create_session, deactivate_session
 from models.session.session_db import SessionCreate, SessionResult
 from models.session.session_st import clear_user_session, set_user_session
-from models.user.us_onauth import ActiveSession
+from models.user.user_auth import ActiveSession
 
 
 class SessionService:
-    """Service untuk hybrid session management."""
+    """Service untuk hybrid session management - orchestrates DB + Streamlit."""
 
     def create_user_session(
         self, user_session: ActiveSession, request_info: dict | None = None
     ) -> SessionResult:
-        """Create hybrid session (database + streamlit)."""
+        """Create hybrid session dengan atomic operation."""
         try:
-            # Create database session untuk audit trail
-            session_data = SessionCreate.create_new(
-                user_id=user_session.user_id,
-                hours=8,  # 8 jam kerja
-            )
+            # Step 1: Prepare database session data
+            session_data = self._prepare_session_data(user_session, request_info)
 
-            # Add request info if available
-            if request_info:
-                session_data.ip_address = request_info.get("ip_address")
-                session_data.user_agent = request_info.get("user_agent")
+            # Step 2: Create database session (audit trail)
+            db_result = create_session(session_data)
+            if not db_result.success:
+                logger.warning(f"Database session creation failed: {db_result.message}")
+                return db_result
 
-            success, token, session_id = create_session(session_data)
+            # Step 3: Update ActiveSession dengan token dari database
+            user_session.session_token = db_result.token
 
-            if not success:
-                return SessionResult(
-                    success=False,
-                    session_id=None,
-                    message="Gagal membuat session database",
-                )
-
-            # ✅ Update user_session dengan token dari database
-            user_session.session_token = token
-
-            # Set streamlit session dengan token
+            # Step 4: Set Streamlit session state
             set_user_session(user_session)
 
             logger.info(f"Hybrid session created for user: {user_session.username}")
-            return SessionResult(
-                success=True, session_id=session_id, message="Session berhasil dibuat"
+            return SessionResult.success_result(
+                session_id=db_result.session_id,
+                token=db_result.token,
+                message="Hybrid session berhasil dibuat",
             )
 
         except Exception as e:
-            logger.error(f"Failed to create user session: {e}")
-            return SessionResult(
-                success=False,
-                message="Error sistem saat membuat session",
-                session_id=None,
-            )
+            logger.error(f"Failed to create hybrid session: {e}")
+            return SessionResult.error_result("Error sistem saat membuat session")
 
     def clear_user_session(self, session_token: str | None = None) -> bool:
-        """Clear hybrid session (database + streamlit)."""
-        logger.debug(
-            f"Starting session clear - Token provided: {session_token is not None}"
-        )
+        """Clear hybrid session dengan graceful handling."""
+        logger.debug(f"Starting session clear - Token: {bool(session_token)}")
 
         try:
-            # Clear streamlit session
-            logger.debug("Clearing Streamlit session state")
+            # Step 1: Clear Streamlit session (always safe)
             clear_user_session()
-            logger.info("Streamlit session cleared successfully")
+            logger.debug("Streamlit session cleared")
 
-            # Deactivate database session if token provided
+            # Step 2: Deactivate database session (if token exists)
             if session_token:
-                logger.debug(
-                    f"Deactivating database session with token: {session_token[:10]}..."
-                )
-                deactivate_session(session_token)
-                logger.info(
-                    f"Database session deactivated for token: {session_token[:10]}..."
-                )
-            else:
-                logger.debug(
-                    "No session token provided, skipping database session deactivation"
-                )
+                db_success = deactivate_session(session_token)
+                if db_success:
+                    logger.info(
+                        f"Database session deactivated: {session_token[:10]}..."
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to deactivate DB session: {session_token[:10]}..."
+                    )
 
-            logger.info("User session cleared successfully")
+            logger.info("Hybrid session cleared successfully")
             return True
 
         except Exception as e:
-            logger.error(f"Exception during session clear: {type(e).__name__}: {e}")
-            logger.debug(
-                f"Session clear failed with token: {session_token[:10] if session_token else 'None'}, Error: {e}",
-                exc_info=True,
-            )
-            return False
+            logger.error(f"Session clear error: {e}")
+            # Return True karena Streamlit session udah clear (partial success)
+            return True
 
-    # TODO: Phase 2 - Admin session monitoring (owner request)
-    # def get_active_sessions(self) -> list[SessionView]:
-    #     """Get all active sessions untuk admin monitoring."""
-    #     pass
+    def _prepare_session_data(
+        self, user_session: ActiveSession, request_info: dict | None
+    ) -> SessionCreate:
+        """Prepare session data dengan request info."""
+        session_data = SessionCreate.create_new(
+            user_id=user_session.user_id,
+            hours=8,  # 8 jam kerja
+            request_info=request_info,
+        )
+        return session_data
 
-    # def force_logout_user(self, user_id: int) -> bool:
-    #     """Force logout user untuk admin control."""
-    #     pass
+    # PINNED: Phase 2 - Admin session monitoring
+    # TODO: get_active_sessions() untuk admin monitoring
+    # TODO: force_logout_user() untuk admin control

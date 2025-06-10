@@ -1,149 +1,339 @@
-"""User commands untuk user operations."""
+"""User commands untuk database operations - standardized Pydantic returns."""
 
 from __future__ import annotations
 
+from datetime import datetime
+
+import bcrypt
 import streamlit as st
 from loguru import logger
-from sqlalchemy import insert, select, update
+from sqlalchemy import delete, select, update
 
 from config.constants import DBConstants
 from database.definitions import get_role_table_definition, get_user_table_definition
-from models.user import UserCreate, UserUpdate
+from models.user.user_commons import OperationResult
+from models.user.user_models import User, UserCreate, UserListItem, UserUpdate
+
+
+@st.cache_data(ttl=DBConstants.CACHE_TTL_MEDIUM, show_spinner="Loading users...")
+def get_all_users() -> list[UserListItem]:
+    """Get semua users untuk admin listing."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+
+        user_table = get_user_table_definition()
+        role_table = get_role_table_definition()
+
+        stmt = (
+            select(
+                user_table.c.id,
+                user_table.c.username,
+                user_table.c.name,
+                role_table.c.name.label("role_name"),
+                user_table.c.is_verified,
+                user_table.c.is_active,
+            )
+            .select_from(
+                user_table.join(role_table, user_table.c.role_id == role_table.c.id)
+            )
+            .order_by(user_table.c.created_at.desc())
+        )
+
+        with conn.session as s:
+            results = s.execute(stmt).fetchall()
+
+        return [UserListItem.model_validate(row._asdict()) for row in results]
+
+    except Exception as e:
+        logger.error(f"Failed to get users: {e}")
+        return []
 
 
 @st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT, show_spinner="Fetching user...")
-def get_user_by_id(user_id: int) -> dict | None:
-    """Get user data by ID dengan role name."""
-    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
-
-    user_table = get_user_table_definition()
-    role_table = get_role_table_definition()
-
-    stmt = (
-        select(
-            user_table.c.id,
-            user_table.c.username,
-            user_table.c.name,
-            user_table.c.is_verified,
-            user_table.c.created_at,
-            role_table.c.name.label("role_name"),  # ✅ JOIN untuk role_name
-        )
-        .select_from(
-            user_table.join(role_table, user_table.c.role_id == role_table.c.id)
-        )
-        .where(user_table.c.id == user_id)
-    )
-
-    result = conn.query(str(stmt), params={"user_id": user_id})
-
-    if result.empty:
-        return None
-    return result.to_dict(orient="records")[0]
-
-
-def get_all_users() -> list[dict]:
-    """Get all verified users."""
-    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
-
-    # ✅ SQLAlchemy table construct - safer from injection
-    user_table = get_user_table_definition()
-
-    stmt = (
-        select(
-            user_table.c.id,
-            user_table.c.username,
-            user_table.c.name,
-            user_table.c.role_id,
-        )
-        .where(user_table.c.is_verified == 1)
-        .order_by(user_table.c.id.asc())
-    )
-
-    result = conn.query(str(stmt))
-
-    if result.empty:
-        return []
-    return result.to_dict(orient="records")
-
-
-def create_user(user_data: UserCreate) -> tuple[bool, str]:
-    """Create new user - returns (success, message)."""
-    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
-
+def get_user_by_id(user_id: int) -> User | None:
+    """Get user by ID dengan role name."""
     try:
-        with conn.session as s:
-            # ✅ SQLAlchemy table construct - safer from injection
-            user_table = get_user_table_definition()
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
 
-            stmt = insert(user_table).values(
+        user_table = get_user_table_definition()
+        role_table = get_role_table_definition()
+
+        stmt = (
+            select(
+                user_table.c.id,
+                user_table.c.username,
+                user_table.c.name,
+                user_table.c.password_hash,
+                user_table.c.role_id,
+                role_table.c.name.label("role_name"),
+                user_table.c.is_verified,
+                user_table.c.is_active,
+                user_table.c.created_at,
+                user_table.c.updated_at,
+            )
+            .select_from(
+                user_table.join(role_table, user_table.c.role_id == role_table.c.id)
+            )
+            .where(user_table.c.id == user_id)
+        )
+
+        with conn.session as s:
+            result = s.execute(stmt).first()
+
+        if result:
+            return User.model_validate(result._asdict())
+        return None
+
+    except Exception as e:
+        logger.error(f"Failed to get user {user_id}: {e}")
+        return None
+
+
+def create_user(user_data: UserCreate) -> OperationResult:
+    """Create new user - admin operation."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        # Hash password
+        password_hash = bcrypt.hashpw(
+            user_data.password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+
+        with conn.session as s:
+            check_stmt = select(user_table.c.id).where(
+                user_table.c.username == user_data.username
+            )
+            existing = s.execute(check_stmt).fetchone()
+
+            if existing:
+                return OperationResult(
+                    success=False, message=f"Username '{user_data.username}' sudah ada"
+                )
+
+            # Insert new user
+            insert_stmt = user_table.insert().values(
                 username=user_data.username,
                 name=user_data.name,
-                password_hash=user_data.password,  # Will be hashed in service
+                password_hash=password_hash,
                 role_id=user_data.role_id,
-                is_verified=False,
+                is_verified=user_data.is_verified,
+                is_active=True,
+                created_at=user_data.created_at,
             )
 
-            s.execute(stmt)
+            s.execute(insert_stmt)
             s.commit()
+
             logger.info(f"User created: {user_data.username}")
-            return True, "User berhasil dibuat"
+            return OperationResult(
+                success=True, message=f"User '{user_data.username}' berhasil dibuat"
+            )
 
     except Exception as e:
         logger.error(f"Failed to create user: {e}")
-        return False, "Gagal membuat user"
+        return OperationResult(success=False, message="Gagal membuat user")
 
 
-def update_user(user_id: int, user_data: UserUpdate) -> tuple[bool, str]:
-    """Update user data - returns (success, message)."""
-    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
-
+def update_user(user_id: int, user_data: UserUpdate) -> OperationResult:
+    """Update user data - admin operation."""
     try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        # Build update values - hanya field yang tidak None
+        update_values = {}
+        if user_data.name is not None:
+            update_values["name"] = user_data.name
+        if user_data.role_id is not None:
+            update_values["role_id"] = user_data.role_id
+        if user_data.is_active is not None:
+            update_values["is_active"] = user_data.is_active
+
+        if not update_values:
+            return OperationResult(
+                success=False, message="Tidak ada data untuk diupdate"
+            )
+
+        update_values["updated_at"] = datetime.now()
+
         with conn.session as s:
-            # Build update values dict based on provided fields
-            update_values = {}
+            # Check user exists
+            check_stmt = select(user_table.c.id).where(user_table.c.id == user_id)
+            existing = s.execute(check_stmt).fetchone()
 
-            if user_data.name is not None:
-                update_values["name"] = user_data.name
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
 
-            if user_data.role_id is not None:
-                update_values["role_id"] = user_data.role_id
-
-            if user_data.is_verified is not None:
-                update_values["is_verified"] = user_data.is_verified
-
-            if not update_values:
-                return False, "Tidak ada data yang diupdate"
-
-            user_table = get_user_table_definition()
-
-            stmt = (
+            # Update user
+            update_stmt = (
                 update(user_table)
                 .where(user_table.c.id == user_id)
-                .values(update_values)
+                .values(**update_values)
             )
-            s.execute(stmt)
+            s.execute(update_stmt)
             s.commit()
 
             logger.info(f"User updated: {user_id}")
-            return True, "User berhasil diupdate"
+            return OperationResult(success=True, message="User berhasil diupdate")
 
     except Exception as e:
-        logger.error(f"Failed to update user: {e}")
-        return False, "Gagal mengupdate user"
+        logger.error(f"Failed to update user {user_id}: {e}")
+        return OperationResult(success=False, message="Gagal mengupdate user")
 
 
-def delete_user(user_id: int) -> bool:
-    """Delete user by ID - returns success status."""
-    conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
-
+def delete_user(user_id: int) -> OperationResult:
+    """Delete user - admin operation."""
     try:
-        with conn.session as s:
-            # ✅ SQLAlchemy table construct - safer from injection
-            user_table = get_user_table_definition()
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
 
-            stmt = user_table.delete().where(user_table.c.id == user_id)
-            s.execute(stmt)
+        with conn.session as s:
+            # Check user exists
+            check_stmt = select(user_table.c.username).where(user_table.c.id == user_id)
+            existing = s.execute(check_stmt).fetchone()
+
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
+
+            username = existing[0]
+
+            # Delete user
+            delete_stmt = delete(user_table).where(user_table.c.id == user_id)
+            s.execute(delete_stmt)
             s.commit()
-            return True
-    except Exception:
-        return False
+
+            logger.info(f"User deleted: {username}")
+            return OperationResult(
+                success=True, message=f"User '{username}' berhasil dihapus"
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to delete user {user_id}: {e}")
+        return OperationResult(success=False, message="Gagal menghapus user")
+
+
+def deactivate_user(user_id: int) -> OperationResult:
+    """Deactivate user instead of delete - safer operation."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        with conn.session as s:
+            # Check user exists and get username
+            check_stmt = select(user_table.c.username, user_table.c.is_active).where(
+                user_table.c.id == user_id
+            )
+            existing = s.execute(check_stmt).fetchone()
+
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
+
+            username, is_active = existing
+
+            if not is_active:
+                return OperationResult(
+                    success=False, message=f"User '{username}' sudah tidak aktif"
+                )
+
+            # Deactivate user
+            update_stmt = (
+                update(user_table)
+                .where(user_table.c.id == user_id)
+                .values(is_active=False, updated_at=datetime.now())
+            )
+            s.execute(update_stmt)
+            s.commit()
+
+            logger.info(f"User deactivated: {username}")
+            return OperationResult(
+                success=True, message=f"User '{username}' berhasil dinonaktifkan"
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to deactivate user {user_id}: {e}")
+        return OperationResult(success=False, message="Gagal menonaktifkan user")
+
+
+def activate_user(user_id: int) -> OperationResult:
+    """Activate user - opposite of deactivate."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        with conn.session as s:
+            # Check user exists
+            check_stmt = select(user_table.c.username, user_table.c.is_active).where(
+                user_table.c.id == user_id
+            )
+            existing = s.execute(check_stmt).fetchone()
+
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
+
+            username, is_active = existing
+
+            if is_active:
+                return OperationResult(
+                    success=False, message=f"User '{username}' sudah aktif"
+                )
+
+            # Activate user
+            update_stmt = (
+                update(user_table)
+                .where(user_table.c.id == user_id)
+                .values(is_active=True, updated_at=datetime.now())
+            )
+            s.execute(update_stmt)
+            s.commit()
+
+            logger.info(f"User activated: {username}")
+            return OperationResult(
+                success=True, message=f"User '{username}' berhasil diaktifkan"
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to activate user {user_id}: {e}")
+        return OperationResult(success=False, message="Gagal mengaktifkan user")
+
+
+def verify_user(user_id: int) -> OperationResult:
+    """Verify user account."""
+    try:
+        conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
+        user_table = get_user_table_definition()
+
+        with conn.session as s:
+            # Check user exists
+            check_stmt = select(user_table.c.username, user_table.c.is_verified).where(
+                user_table.c.id == user_id
+            )
+            existing = s.execute(check_stmt).fetchone()
+
+            if not existing:
+                return OperationResult(success=False, message="User tidak ditemukan")
+
+            username, is_verified = existing
+
+            if is_verified:
+                return OperationResult(
+                    success=False, message=f"User '{username}' sudah terverifikasi"
+                )
+
+            # Verify user
+            update_stmt = (
+                update(user_table)
+                .where(user_table.c.id == user_id)
+                .values(is_verified=True, updated_at=datetime.now())
+            )
+            s.execute(update_stmt)
+            s.commit()
+
+            logger.info(f"User verified: {username}")
+            return OperationResult(
+                success=True, message=f"User '{username}' berhasil diverifikasi"
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to verify user {user_id}: {e}")
+        return OperationResult(success=False, message="Gagal memverifikasi user")

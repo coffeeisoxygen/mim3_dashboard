@@ -1,4 +1,4 @@
-"""Authentication journey schemas - login, session, logout flow."""
+"""Authentication models - login, session, logout flow."""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .user_commons import OperationResult
+
 
 class AccountLogin(BaseModel):
-    """Model untuk user login."""
+    """Model untuk user login - simplified untuk login form."""
 
     username: str = Field(min_length=3, max_length=50, description="Username")
     password: str = Field(min_length=6, description="Password")
@@ -20,20 +22,17 @@ class ActiveSession(BaseModel):
 
     user_id: int = Field(gt=0, description="User ID")
     username: str = Field(description="Username")
-    name: str = Field(description="Nama lengkap user")
-    role_id: int = Field(gt=0, description="Role ID dari database")
-    role_name: str = Field(description="Display role name dari database")
+    name: str = Field(description="Name")
+    role_id: int = Field(description="Role ID")
+    role_name: str | None = Field(None, description="Role name")
     login_time: datetime = Field(default_factory=datetime.now)
-    session_token: str | None = Field(
-        None, description="Database session token"
-    )  # ✅ Tambah ini
+    session_token: str | None = Field(None, description="Database session token")
     model_config = ConfigDict(from_attributes=True)
 
 
-class LoginResult(BaseModel):
+class LoginResult(OperationResult):
     """Model untuk login operation result."""
 
-    success: bool = Field(description="Login berhasil atau tidak")
     user_session: ActiveSession | None = Field(
         default=None, description="Session data jika berhasil"
     )

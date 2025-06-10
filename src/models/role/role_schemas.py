@@ -63,3 +63,45 @@ class RoleActionResult(BaseModel):
     success: bool = Field(description="Operasi berhasil atau tidak")
     affected_users: int = Field(ge=0, description="Jumlah user yang terpengaruh")
     message: str = Field(description="Pesan hasil operasi")
+
+
+class RoleOption(BaseModel):
+    """Model untuk role dropdown di registration form."""
+
+    id: int = Field(gt=0, description="Role ID")
+    name: str = Field(description="Nama role")
+    description: str = Field(description="Deskripsi role")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserRegistration(BaseModel):
+    """Model untuk user self-registration."""
+
+    username: str = Field(min_length=3, max_length=50, description="Username unik")
+    name: str = Field(min_length=2, max_length=100, description="Nama lengkap")
+    password: str = Field(min_length=6, description="Password")
+    requested_role_id: int = Field(
+        default=2,  # Default "operator" role
+        gt=0,
+        description="Role yang diminta",
+    )
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class RegistrationResult(BaseModel):
+    """Result untuk registration operation."""
+
+    success: bool = Field(description="Registration berhasil atau tidak")
+    user_id: int | None = Field(default=None, description="User ID yang dibuat")
+    message: str = Field(description="Pesan hasil registration")
+    requires_approval: bool = Field(default=True, description="Butuh approval admin")
+
+
+class SystemRoleCreate(BaseModel):
+    """Model khusus untuk system role seeding - no validation."""
+
+    name: str = Field(description="System role name")
+    description: str = Field(description="System role description")
+    model_config = ConfigDict(str_strip_whitespace=True)

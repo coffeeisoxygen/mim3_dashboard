@@ -44,11 +44,12 @@ def setup_logging() -> None:
     log_to_file = os.getenv("LOG_TO_FILE", "true").lower() == "true"
     separate_errors = os.getenv("LOG_SEPARATE_ERROR", "true").lower() == "true"
 
-    # ✅ Updated format dengan session tracking
+    # ✅ Updated format dengan session tracking dan detailed info
     console_format = (
         "<green>{time:HH:mm:ss}</green> | "
         "<level>{level: <8}</level> | "
-        "<cyan>{name}</cyan> - <level>{message}</level>"
+        "<cyan>{name}</cyan>:<magenta>{function}</magenta>:<yellow>{line}</yellow> - "
+        "<level>{message}</level>"
     )
 
     file_format = (
