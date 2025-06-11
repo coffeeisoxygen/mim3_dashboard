@@ -9,7 +9,6 @@ from config.logging import setup_logging
 from database.core import initialize_database
 from models.system.bootstrap import ensure_system_ready
 from ui.components.ui_auth import AuthHandler
-from ui.components.ui_logout import LogoutHandler
 from ui.page_manager import PageManager
 
 
@@ -106,10 +105,11 @@ class App:
 
     def _render_authenticated_app(self) -> None:
         """Render app untuk user yang sudah login."""
-        # ✅ Add logout handler hanya sekali per session
-        if "logout_handler_added" not in st.session_state:
-            LogoutHandler().add_logout_to_sidebar()
-            st.session_state.logout_handler_added = True
+        # ✅ Remove old LogoutHandler - use simple footer instead
+        # LogoutHandler().add_logout_to_sidebar()
+
+        # ✅ Add simple sidebar footer
+        self._render_sidebar_footer()
 
         # ✅ Cache page manager
         if "page_manager" not in st.session_state:
@@ -146,6 +146,29 @@ class App:
         # TODO: Add restart button or troubleshooting info
         if st.button("🔄 Retry Initialization"):
             st.rerun()
+
+    def _render_sidebar_footer(self) -> None:
+        """Simple logout footer di sidebar."""
+        with st.sidebar:
+            st.divider()
+
+            # User info
+            username = st.session_state.get("username", "User")
+            role = st.session_state.get("user_role", "user")
+
+            st.caption(f"👤 {username} ({role.title()})")
+
+            # Simple logout button - no confirmation
+            if st.button("🚪 Logout", type="secondary", use_container_width=True):
+                from services.auth_service import AuthService
+
+                auth_service = AuthService()
+                success, message = auth_service.perform_logout()
+
+                if success:
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
 
 
 # REMINDER: Bootstrap sequence = Infrastructure → Business Logic → UI

@@ -88,12 +88,25 @@ class SessionService:
         """Get validation data untuk UI restoration - returns data only."""
         logger.debug(f"Getting restoration data: {session_token[:10]}...")
 
+        # ✅ Add detailed validation logging
         validation = self.validate_session(session_token)
+
+        logger.opt(lazy=True).debug(
+            "Validation result: valid={valid}, expired={expired}, user_id={user_id}",
+            valid=lambda: validation.is_valid,
+            expired=lambda: validation.is_expired,
+            user_id=lambda: validation.user_id,
+        )
 
         if validation.is_valid:
             # Refresh activity saat restoration
-            self.refresh_session(session_token)
+            refresh_success = self.refresh_session(session_token)
+            logger.debug(f"Session refresh success: {refresh_success}")
             logger.info(f"Restoration data ready for: {validation.username}")
+        else:
+            logger.warning(
+                f"Session validation failed: valid={validation.is_valid}, expired={validation.is_expired}"
+            )
 
         return validation
 

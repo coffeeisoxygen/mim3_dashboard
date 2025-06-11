@@ -109,23 +109,19 @@ def deactivate_session(session_token: str) -> bool:
         return False
 
 
-@st.cache_data(
-    ttl=DBConstants.CACHE_TTL_FAST, show_spinner=False
-)  # ✅ No spinner for fast operations
+@st.cache_data(ttl=DBConstants.CACHE_TTL_SHORT)
 def get_session_by_token(session_token: str) -> SessionValidation:
-    """Get session with user info untuk validation."""
-    # ✅ Add early return untuk performance
-    if not session_token or len(session_token) < 10:
-        return SessionValidation.invalid_session("Token tidak valid")
-
+    """Get session dengan user data untuk validation."""
     try:
+        logger.debug(f"Querying session by token: {session_token[:10]}...")
+
         conn = st.connection(DBConstants.CON_NAME, type=DBConstants.CON_TYPE)
         session_table = get_session_table_definition()
         user_table = get_user_table_definition()
         role_table = get_role_table_definition()
 
         with conn.session as s:
-            # Join session, user, dan role untuk complete info
+            # ✅ Add detailed query logging
             stmt = (
                 select(
                     session_table.c.user_id,
@@ -142,7 +138,10 @@ def get_session_by_token(session_token: str) -> SessionValidation:
                 .where(session_table.c.session_token == session_token)
             )
 
+            logger.debug(f"Executing query: {stmt}")
             result = s.execute(stmt).first()
+
+            logger.debug(f"Query result: {result}")
 
             if not result:
                 return SessionValidation.invalid_session("Session tidak ditemukan")
@@ -151,8 +150,18 @@ def get_session_by_token(session_token: str) -> SessionValidation:
             if not result.is_active:
                 return SessionValidation.invalid_session("Session tidak aktif")
 
-            # Check if expired
-            if datetime.now() > result.expires_at:
+            # ✅ FIX: Parse datetime string dari database
+            expires_at_value = result.expires_at
+            if isinstance(expires_at_value, str):
+                # Import datetime locally to avoid shadowing
+                from datetime import datetime as dt
+
+                expires_at_value = dt.fromisoformat(
+                    expires_at_value.replace("+07:00", "")
+                )
+
+            # Check if expired - use current datetime.now()
+            if datetime.now() > expires_at_value:
                 return SessionValidation.expired_session()
 
             # Valid session
