@@ -43,9 +43,7 @@ class App:
     def run(self) -> None:
         """Run the application main loop."""
         # ✅ Cache resource ensures this runs only once
-        try:
-            _initialize_app_once()
-        except Exception:
+        if not _initialize_app_once():
             self._render_bootstrap_error()
             return
 
@@ -94,6 +92,8 @@ class App:
 
                 if success:
                     logger.info("Session restored from URL successfully")
+                    # ✅ Set logged_in state explicitly for clarity
+                    st.session_state.logged_in = True
                     # Keep URL clean after restoration
                     st.query_params.clear()
                 else:
