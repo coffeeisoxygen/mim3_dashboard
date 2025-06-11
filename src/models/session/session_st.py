@@ -1,89 +1,128 @@
-"""Simple session state utilities - clean and predictable."""
+"""Streamlit session state management - clean OOP approach."""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
 
 import streamlit as st
 from loguru import logger
 
-from models.user.user_auth import ActiveSession
+
+# PINNED: Interface untuk loose coupling dengan user models
+class SessionDataProtocol(Protocol):
+    """Protocol untuk session data - no direct coupling."""
+
+    user_id: int
+    username: str
+    name: str
+    role_id: int
+    role_name: str | None
+    session_token: str | None
 
 
-def set_user_session(user_session: ActiveSession) -> None:
-    """Set user session data dengan clean mapping."""
-    try:
-        # Basic user data - always present
-        st.session_state.logged_in = True
-        st.session_state.user_id = user_session.user_id
-        st.session_state.username = user_session.username
-        st.session_state.name = user_session.name
-        st.session_state.login_time = user_session.login_time
+class SessionStateManager:
+    """Manage Streamlit session state dengan clear boundaries."""
 
-        # Role data dengan clear fallback
-        st.session_state.user_role = _get_user_role(user_session)
-        st.session_state.role_id = _get_role_id(user_session)
+    @logger.catch
+    def set_user_session(self, session_data: SessionDataProtocol) -> bool:
+        """Set session state dari protocol interface."""
+        # Guard against None session data
+        if session_data is None:
+            logger.error("Cannot set session: session_data is None")
+            return False
 
-        # Session token - direct assignment
-        st.session_state.session_token = user_session.session_token
+        try:
+            # Core session data
+            st.session_state.logged_in = True
+            st.session_state.user_id = session_data.user_id
+            st.session_state.username = session_data.username or ""
+            st.session_state.name = session_data.name or ""
+            st.session_state.session_token = session_data.session_token
 
-        logger.debug(
-            f"Session set for user: {user_session.username} with role: {st.session_state.user_role}"
+            # Role dengan safe extraction
+            st.session_state.user_role = self._extract_role_name(session_data)
+            st.session_state.role_id = session_data.role_id
+
+            logger.opt(lazy=True).debug(
+                "Session set for user: {username} with role: {role}",
+                username=lambda: session_data.username,
+                role=lambda: st.session_state.user_role,
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to set session: {e}")
+            self.clear_session()
+            return False
+
+    def _extract_role_name(self, data: SessionDataProtocol) -> str:
+        """Strategy pattern untuk role extraction."""
+        if not data.role_name or data.role_name.strip() == "":
+            return "pending"
+        return data.role_name
+
+    @logger.catch
+    def clear_session(self) -> bool:
+        """Clear session dengan safe cleanup."""
+        session_keys = [
+            "logged_in",
+            "user_id",
+            "username",
+            "name",
+            "user_role",
+            "role_id",
+            "session_token",
+        ]
+
+        cleared = sum(
+            1
+            for key in session_keys
+            if key in st.session_state and (st.session_state.pop(key, None) is not None)
         )
 
-    except Exception as e:
-        logger.error(f"Failed to set user session: {e}")
-        clear_user_session()  # Failsafe
+        logger.debug(f"Cleared {cleared} session keys")
+        return True
+
+    def get_current_user(self) -> dict[str, Any]:
+        """Safe access pattern untuk current user data."""
+        return {
+            "user_id": st.session_state.get("user_id"),
+            "username": st.session_state.get("username", ""),
+            "name": st.session_state.get("name", ""),
+            "role": st.session_state.get("user_role", "pending"),
+            "role_id": st.session_state.get("role_id", 0),
+            "is_pending": st.session_state.get("user_role", "pending") == "pending",
+            "is_logged_in": st.session_state.get("logged_in", False),
+        }
+
+    def is_valid_session(self) -> bool:
+        """Validator pattern untuk session validity."""
+        required = ["logged_in", "user_id", "username"]
+        return all(
+            key in st.session_state for key in required
+        ) and st.session_state.get("logged_in", False)
 
 
-def _get_user_role(user_session: ActiveSession) -> str:
-    """Extract user role dengan fallback logic."""
-    if not user_session.role_name or user_session.role_name.strip() == "":
-        return "pending"
-    return user_session.role_name
+# TODO: Singleton pattern untuk global state manager instance
+_session_manager = SessionStateManager()
 
 
-def _get_role_id(user_session: ActiveSession) -> int:
-    """Extract role ID dengan fallback logic."""
-    if not user_session.role_name or user_session.role_name.strip() == "":
-        return 0
-    return user_session.role_id or 0
+# REMINDER: Backward compatibility functions
+def set_user_session(user_session) -> None:
+    """Backward compatibility wrapper."""
+    _session_manager.set_user_session(user_session)
 
 
 def clear_user_session() -> None:
-    """Clear user session data completely dengan safety."""
-    session_keys = [
-        "logged_in",
-        "user_id",
-        "username",
-        "name",
-        "user_role",
-        "role_id",
-        "login_time",
-        "session_token",
-    ]
-
-    cleared_count = 0
-    for key in session_keys:
-        if key in st.session_state:
-            del st.session_state[key]
-            cleared_count += 1
-
-    logger.debug(f"Cleared {cleared_count} session keys")
+    """Backward compatibility wrapper."""
+    _session_manager.clear_session()
 
 
 def get_current_user() -> dict:
-    """Get current user info dengan safe access."""
-    return {
-        "user_id": st.session_state.get("user_id"),
-        "username": st.session_state.get("username", ""),
-        "name": st.session_state.get("name", ""),
-        "role": st.session_state.get("user_role", "pending"),
-        "role_id": st.session_state.get("role_id", 0),
-        "is_pending": st.session_state.get("user_role", "pending") == "pending",
-        "is_logged_in": st.session_state.get("logged_in", False),
-    }
+    """Backward compatibility wrapper."""
+    return _session_manager.get_current_user()
 
 
 def is_session_valid() -> bool:
-    """Quick session validity check."""
-    required_keys = ["logged_in", "user_id", "username"]
-    return all(
-        key in st.session_state for key in required_keys
-    ) and st.session_state.get("logged_in", False)
+    """Backward compatibility wrapper."""
+    return _session_manager.is_valid_session()

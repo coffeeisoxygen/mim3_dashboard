@@ -7,7 +7,6 @@ from loguru import logger
 
 from config.logging import setup_logging
 from database.core import initialize_database
-from models.session.session_st import get_current_user
 from models.system.bootstrap import ensure_system_ready
 from ui.components.ui_auth import AuthHandler
 from ui.components.ui_logout import LogoutHandler
@@ -59,7 +58,7 @@ class App:
             self._render_login_page()
 
     def _setup_session_state(self) -> None:
-        """Setup session state dengan current user check."""
+        """Setup session state dengan session restoration."""
         # Initialize default values
         defaults = {
             "logged_in": False,
@@ -71,12 +70,39 @@ class App:
             if key not in st.session_state:
                 st.session_state[key] = default_value
 
-        # Check current user status
-        current_user = get_current_user()
-        if current_user.get("user_id"):
-            st.session_state.logged_in = True
-            st.session_state.user_role = current_user.get("role")
-            st.session_state.username = current_user.get("username")
+        # ✅ Attempt session restoration jika belum logged in
+        if not st.session_state.get("logged_in", False):
+            self._attempt_session_restoration()
+
+    @logger.catch
+    def _attempt_session_restoration(self) -> None:
+        """Restore session dari query params using new service layer."""
+        try:
+            # Check query params for session token
+            session_token = st.query_params.get("session")
+
+            if session_token:
+                logger.debug(f"Found session token in URL: {session_token[:10]}...")
+
+                # ✅ Use SessionRestorationManager
+                from services.session_restore_manager import (
+                    get_session_restoration_manager,
+                )
+
+                restore_manager = get_session_restoration_manager()
+                success = restore_manager.restore_session_from_token(session_token)
+
+                if success:
+                    logger.info("Session restored from URL successfully")
+                    # Keep URL clean after restoration
+                    st.query_params.clear()
+                else:
+                    logger.warning("Failed to restore session from URL")
+                    st.query_params.clear()
+
+        except Exception as e:
+            logger.warning(f"Session restoration from URL failed: {e}")
+            st.query_params.clear()
 
     def _render_authenticated_app(self) -> None:
         """Render app untuk user yang sudah login."""
