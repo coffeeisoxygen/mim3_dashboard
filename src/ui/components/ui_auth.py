@@ -6,9 +6,9 @@ from __future__ import annotations
 import time
 
 import streamlit as st
+from core.messages import UIMessages
 from loguru import logger
 
-from core.messages import UIMessages
 from services.auth_service import AuthService
 
 

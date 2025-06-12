@@ -3,7 +3,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 
-from core.app import App
+from app import App
 
 st.set_page_config(
     page_title="MIM3 Dashboard",

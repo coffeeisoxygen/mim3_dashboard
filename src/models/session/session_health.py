@@ -53,7 +53,11 @@ class SessionHealthCheck:
         }
 
         try:
-            # Test basic context access
+            # Test basic context access - gunakan getattr untuk handle jika st.context tidak ada
+            if not hasattr(st, "context"):
+                raise AttributeError("st.context is not available")
+
+            # Akses st.context untuk memastikan tidak ada exception
             _ = st.context
             health["context_available"] = True
 
@@ -84,7 +88,7 @@ class SessionHealthCheck:
                             "fallback_needed": False,
                         }
                     else:
-                        # ✅ Value is None - fallback will be used
+                        # Value is None - fallback will be used
                         health["fallback_used"] = True
                         features_dict[feature] = {
                             "available": True,
@@ -105,6 +109,8 @@ class SessionHealthCheck:
                     issues_list.append(f"Feature {feature} not available: {e}")
 
         except Exception as e:
+            # If basic context access fails, mark as unavailable
+            health["context_available"] = False
             health["fallback_used"] = True
             issues_list = health["issues"]
             issues_list.append(f"Context not available: {e}")
@@ -121,18 +127,34 @@ class SessionHealthCheck:
         }
 
         try:
-            # Test basic session state
+            # Test basic session state access first
+            if not hasattr(st, "session_state"):
+                raise AttributeError("st.session_state is not available")
+
             test_key = "_health_check_test"
-            st.session_state[test_key] = "test_value"
 
-            if st.session_state.get(test_key) == "test_value":
-                health["session_state_available"] = True
-                health["test_passed"] = True
+            # Try to access session state
+            _ = st.session_state
+            health["session_state_available"] = True
 
-            # Cleanup
-            st.session_state.pop(test_key, None)
+            # Try to write to session state
+            try:
+                st.session_state[test_key] = "test_value"
+
+                if st.session_state.get(test_key) == "test_value":
+                    health["test_passed"] = True
+
+                # Cleanup
+                st.session_state.pop(test_key, None)
+            except Exception as e:
+                issues_list = health["issues"]
+                issues_list.append(f"Session state write test failed: {e}")
+                health["test_passed"] = False
 
         except Exception as e:
+            # When session state fails, mark as unavailable
+            health["session_state_available"] = False
+            health["test_passed"] = False
             issues_list = health["issues"]
             issues_list.append(f"Session state test failed: {e}")
 
@@ -144,12 +166,19 @@ class SessionHealthCheck:
         logger.info("Running session system health check")
 
         context_health = SessionHealthCheck.check_streamlit_context_availability()
-        session_health = SessionHealthCheck.check_session_state_health()
-
-        # ✅ Determine deployment type
+        session_health = (
+            SessionHealthCheck.check_session_state_health()
+        )  # Determine deployment type
         deployment_type = "unknown"
         try:
-            if hasattr(st.context, "ip_address") and st.context.ip_address:
+            # Fixed: Check context availability first
+            if not context_health["context_available"]:
+                deployment_type = "localhost"  # Default when context unavailable
+            elif (
+                hasattr(st, "context")
+                and hasattr(st.context, "ip_address")
+                and st.context.ip_address
+            ):
                 ip = st.context.ip_address
                 if ip in {"127.0.0.1", "::1"}:
                     deployment_type = "localhost"
@@ -172,32 +201,16 @@ class SessionHealthCheck:
             "recommendations": [],
         }
 
-        # ✅ Determine overall health
+        # Determine overall health
         context_ok = context_health["context_available"]
         session_ok = session_health["test_passed"]
         fallback_used = context_health.get("fallback_used", False)
 
         recommendations = health_report["recommendations"]
 
-        if context_ok and session_ok:
-            if fallback_used:
-                health_report["overall_health"] = "healthy_with_fallbacks"
-                recommendations.append(
-                    "✅ System healthy - using fallback values untuk missing context"
-                )
-            else:
-                health_report["overall_health"] = "healthy"
-                recommendations.append("✅ System fully healthy - all features working")
-        elif session_ok:  # Session state OK, context issues
-            health_report["overall_health"] = "degraded"
-            recommendations.extend(
-                [
-                    "⚠️ Context features limited - using fallback values",
-                    "💡 Consider checking Streamlit version compatibility",
-                    "✅ Core functionality available - dapat melanjutkan operasi",
-                ]
-            )
-        else:
+        # FIX: Ubah logic health determination berdasarkan context dan session state
+        if not context_ok and not session_ok:
+            # Keduanya bermasalah = unhealthy
             health_report["overall_health"] = "unhealthy"
             recommendations.extend(
                 [
@@ -206,8 +219,37 @@ class SessionHealthCheck:
                     "📞 Contact developer jika masalah persists",
                 ]
             )
+        elif not context_ok and session_ok:
+            # Context bermasalah, session OK = degraded
+            health_report["overall_health"] = "degraded"
+            recommendations.extend(
+                [
+                    "⚠️ Context features limited - using fallback values",
+                    "💡 Consider checking Streamlit version compatibility",
+                    "✅ Core functionality available - dapat melanjutkan operasi",
+                ]
+            )
+        elif context_ok and session_ok:
+            # Keduanya OK, cek fallback
+            if fallback_used:
+                health_report["overall_health"] = "healthy_with_fallbacks"
+                recommendations.append(
+                    "✅ System healthy - using fallback values untuk missing context"
+                )
+            else:
+                health_report["overall_health"] = "healthy"
+                recommendations.append("✅ System fully healthy - all features working")
+        else:
+            # Context OK tapi session bermasalah = unhealthy (session critical)
+            health_report["overall_health"] = "unhealthy"
+            recommendations.extend(
+                [
+                    "❌ Session state tidak tersedia",
+                    "🔧 Restart aplikasi dan check session state",
+                ]
+            )
 
-        # ✅ Deployment-specific recommendations
+        # Deployment-specific recommendations
         if deployment_type == "lan":
             recommendations.append(
                 "🌐 LAN deployment detected - optimal untuk MIM3 Dashboard"
@@ -225,7 +267,7 @@ class SessionHealthCheck:
         return health_report
 
 
-# ✅ Convenience function untuk UI
+# Convenience function untuk UI
 def get_health_summary() -> str:
     """Get simple health summary untuk display."""
     try:

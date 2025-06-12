@@ -5,8 +5,8 @@ from __future__ import annotations
 import streamlit as st
 from loguru import logger
 
+from bootstrap import ensure_system_ready
 from config.logging import setup_logging
-from core.bootstrap import ensure_system_ready
 from database.base import initialize_database
 from ui.components.ui_auth import AuthHandler
 from ui.page_manager import PageManager
