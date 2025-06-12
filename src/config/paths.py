@@ -13,11 +13,8 @@ class AppPaths:
 
     # ✅ Data directories
     DATA_DIR = APP_ROOT / "data"
-    TEMP_DIR = APP_ROOT / "temp"
-    LOGS_DIR = APP_ROOT / "logs"
 
-    # ✅ Session management
-    SESSIONS_DIR = TEMP_DIR / "sessions"
+    LOGS_DIR = APP_ROOT / "logs"
 
     # ✅ Database paths
     DATABASE_FILE = DATA_DIR / "mim3.db"
@@ -30,5 +27,5 @@ class AppPaths:
     @classmethod
     def ensure_directories(cls) -> None:
         """Create all required directories."""
-        for path in [cls.DATA_DIR, cls.TEMP_DIR, cls.LOGS_DIR, cls.SESSIONS_DIR]:
+        for path in [cls.DATA_DIR, cls.LOGS_DIR]:
             path.mkdir(parents=True, exist_ok=True)
