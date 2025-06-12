@@ -323,15 +323,6 @@ wheels = [
 ]
 
 [[package]]
-name = "importlib-resources"
-version = "6.5.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cf/8c/f834fbf984f691b4f7ff60f50b514cc3de5cc08abfc3295564dd89c5e2e7/importlib_resources-6.5.2.tar.gz", hash = "sha256:185f87adef5bcc288449d98fb4fba07cea78bc036455dd44c5fc4a2fe78fed2c", size = 44693 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/ed/1f1afb2e9e7f38a545d628f864d562a5ae64fe6f7a10e28ffb9b185b4e89/importlib_resources-6.5.2-py3-none-any.whl", hash = "sha256:789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec", size = 37461 },
-]
-
-[[package]]
 name = "iniconfig"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -440,12 +431,10 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pydantic" },
-    { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
     { name = "stqdm" },
     { name = "streamlit" },
-    { name = "streamlit-pydantic" },
 ]
 
 [package.dev-dependencies]
@@ -465,12 +454,10 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
-    { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
     { name = "stqdm", specifier = ">=0.0.5" },
     { name = "streamlit", specifier = ">=1.45.1" },
-    { name = "streamlit-pydantic", specifier = ">=0.6.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -775,20 +762,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/7d/e09391c2eebeab681df2b74bfe6c43422fffede8dc74187b2b0bf6fd7571/pydantic_core-2.33.2-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:61c18fba8e5e9db3ab908620af374db0ac1baa69f0f32df4f61ae23f15e586ac", size = 1806162 },
     { url = "https://files.pythonhosted.org/packages/f1/3d/847b6b1fed9f8ed3bb95a9ad04fbd0b212e832d4f0f50ff4d9ee5a9f15cf/pydantic_core-2.33.2-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:95237e53bb015f67b63c91af7518a62a8660376a6a0db19b89acc77a4d6199f5", size = 1981560 },
     { url = "https://files.pythonhosted.org/packages/6f/9a/e73262f6c6656262b5fdd723ad90f518f579b7bc8622e43a942eec53c938/pydantic_core-2.33.2-cp313-cp313t-win_amd64.whl", hash = "sha256:c2fc0a768ef76c15ab9238afa6da7f69895bb5d1ee83aeea2e3509af4472d0b9", size = 1935777 },
-]
-
-[[package]]
-name = "pydantic-settings"
-version = "2.9.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "typing-inspection" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/67/1d/42628a2c33e93f8e9acbde0d5d735fa0850f3e6a2f8cb1eb6c40b9a732ac/pydantic_settings-2.9.1.tar.gz", hash = "sha256:c509bf79d27563add44e8446233359004ed85066cd096d8b510f715e6ef5d268", size = 163234 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/5f/d6d641b490fd3ec2c4c13b4244d68deea3a1b970a97be64f34fb5504ff72/pydantic_settings-2.9.1-py3-none-any.whl", hash = "sha256:59b4f431b1defb26fe620c71a7d3968a710d719f5f4cdbbdb7926edeb770f6ef", size = 44356 },
 ]
 
 [[package]]
@@ -1101,20 +1074,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f0/46/9b3f73886f82d27849ce1e7a74ae7c39f5323e46da0b6e8847ad4c25f44c/streamlit-1.45.1.tar.gz", hash = "sha256:e37d56c0af5240dbc240976880e81366689c290a559376417246f9b3f51b4217", size = 9463953 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/13/e6/69fcbae3dd2fcb2f54283a7cbe03c8b944b79997f1b526984f91d4796a02/streamlit-1.45.1-py3-none-any.whl", hash = "sha256:9ab6951585e9444672dd650850f81767b01bba5d87c8dac9bc2e1c859d6cc254", size = 9856294 },
-]
-
-[[package]]
-name = "streamlit-pydantic"
-version = "0.6.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "importlib-resources" },
-    { name = "pydantic" },
-    { name = "streamlit" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/da/918863014e53f862a0158f97eca03d8107cd2de45d5e92ecc2b3a85d4f5d/streamlit-pydantic-0.6.0.tar.gz", hash = "sha256:3bc5d51af085eb6791b360f569f1a541681ddcc51579b09a1e2ab54639b39d49", size = 22224 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/53/4bf8c20ebfd5fc60040d7d09777a983b54156af65978617edf56531abb6e/streamlit_pydantic-0.6.0-py3-none-any.whl", hash = "sha256:7a69ec6519f5de1b21bd9737891c61d8fea33d7727824ab19c4c65d49f136304", size = 18135 },
 ]
 
 [[package]]

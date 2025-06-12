@@ -6,6 +6,8 @@ from enum import Enum
 
 import streamlit as st
 
+from models.user.user_commons import UserRole, get_role_names
+
 
 class PageCategory(Enum):
     """Kategori halaman untuk MIM3 Dashboard.
@@ -36,12 +38,10 @@ class PageConfig:
     visible_for_roles: list[str] | None = None
 
     def __post_init__(self):
-        """Menetapkan peran yang terlihat untuk halaman.
-
-        Jika tidak ada peran yang ditentukan, halaman akan terlihat oleh semua peran.
-        """
+        """Set default roles jika tidak ditentukan."""
         if self.visible_for_roles is None:
-            self.visible_for_roles = ["admin", "user", "viewer"]
+            # ✅ Direct assignment since get_role_names() returns list of strings
+            self.visible_for_roles = list(get_role_names())
 
 
 class PageManager:
@@ -172,7 +172,7 @@ class PageManager:
         }
 
     def get_pages_by_category(
-        self, category: PageCategory, user_role: str = "user"
+        self, category: PageCategory, user_role: UserRole
     ) -> dict[str, PageConfig]:
         """Get pages filtered by category and user role"""
         return {
@@ -180,12 +180,10 @@ class PageManager:
             for key, config in self.pages.items()
             if config.category == category
             and config.visible_for_roles is not None
-            and user_role in config.visible_for_roles
+            and user_role in config.visible_for_roles  # ✅ Direct string comparison
         }
 
-    def get_navigation_structure(
-        self, user_role: str = "user"
-    ) -> dict[str, list[st.Page]]:  # type: ignore
+    def get_navigation_structure(self, user_role: UserRole) -> dict[str, list[st.Page]]:  # type: ignore
         """Build Streamlit navigation structure"""
         navigation = {}
 

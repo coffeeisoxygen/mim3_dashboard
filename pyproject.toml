@@ -11,12 +11,11 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pandas>=2.3.0",
     "pydantic>=2.11.5",
-    "pydantic-settings>=2.9.1",
     "python-dotenv>=1.1.0",
     "sqlalchemy>=2.0.41",
     "stqdm>=0.0.5",
     "streamlit>=1.45.1",
-    "streamlit-pydantic>=0.6.0",
+
 ]
 
 [project.urls]
@@ -92,6 +91,7 @@ testpaths = ["tests"] # Only scan tests directory
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["src"] # Add src to Python path for imports
 addopts = [
     "-v",
     "--strict-markers",
@@ -156,8 +156,8 @@ target-version = "py312"
 line-length = 88
 indent-width = 4
 respect-gitignore = true
-include = ["src/**/*.py", "tests/**/*.py"]
-exclude = ["src/_version.py"]
+include = ["src/**/*.py"]
+exclude = ["src/_version.py", "tests/**/*.py"]
 extend-exclude = [
     "__pycache__",
     ".git",

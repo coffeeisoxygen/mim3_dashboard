@@ -1,4 +1,4 @@
-"""Streamlit session state management - clean OOP approach."""
+"""Streamlit session state management - decoupled from user domain."""
 
 from __future__ import annotations
 
@@ -8,121 +8,249 @@ import streamlit as st
 from loguru import logger
 
 
-# PINNED: Interface untuk loose coupling dengan user models
-class SessionDataProtocol(Protocol):
-    """Protocol untuk session data - no direct coupling."""
+class StreamlitSessionData(Protocol):
+    """Protocol untuk streamlit session - minimal dependencies."""
 
     user_id: int
     username: str
-    name: str
-    role_id: int
-    role_name: str | None
+    display_name: str
+    role: str
     session_token: str | None
 
 
-class SessionStateManager:
-    """Manage Streamlit session state dengan clear boundaries."""
+class StreamlitSessionManager:
+    """Manage Streamlit session state - framework specific."""
+
+    @property
+    def streamlit_session_id(self) -> str:
+        """Generate consistent session ID dari available context."""
+        try:
+            # ✅ Method 1: Use IP + User-Agent untuk generate consistent ID
+            context_data = []
+
+            # Get IP address (None for localhost)
+            try:
+                ip = st.context.ip_address
+                if ip:
+                    context_data.append(ip)
+                else:
+                    context_data.append("localhost")  # Default for local access
+            except (AttributeError, RuntimeError):
+                context_data.append("localhost")
+
+            # Get User-Agent from headers
+            try:
+                headers = st.context.headers
+                if headers and "user-agent" in headers:
+                    ua = headers.get("user-agent", "")[:50]  # First 50 chars
+                    if ua:
+                        context_data.append(ua)
+                else:
+                    context_data.append("unknown_browser")
+            except (AttributeError, RuntimeError):
+                context_data.append("unknown_browser")
+
+            # Get URL untuk additional uniqueness
+            try:
+                url = st.context.url
+                if url:
+                    # Extract port atau path untuk uniqueness
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(url)
+                    context_data.append(f"{parsed.netloc}{parsed.path}")
+                else:
+                    context_data.append("default_url")
+            except (AttributeError, RuntimeError):
+                context_data.append("default_url")
+
+            # ✅ Generate consistent hash dari context
+            if context_data:
+                import hashlib
+
+                context_str = "|".join(context_data)
+
+                session_id = hashlib.sha256(context_str.encode()).hexdigest()[:16]
+                logger.debug(
+                    "Generated session ID from context",
+                    session_id=session_id,
+                    context_parts=len(context_data),
+                )
+                return session_id
+
+            # ✅ Fallback: timestamp-based ID
+            import time
+
+            fallback_id = f"session_{int(time.time())}"
+            logger.debug("Using timestamp-based session ID", session_id=fallback_id)
+            return fallback_id
+
+        except Exception as e:
+            logger.debug("Failed to generate session ID: {error}", error=e)
+            # ✅ Ultimate fallback
+            return "local_session_default"
 
     @logger.catch
-    def set_user_session(self, session_data: SessionDataProtocol) -> bool:
-        """Set session state dari protocol interface."""
-        # Guard against None session data
-        if session_data is None:
-            logger.error("Cannot set session: session_data is None")
+    def set_session(self, data: StreamlitSessionData) -> bool:
+        """Set session dengan minimal user coupling."""
+        if data is None:
+            logger.error("Cannot set session: data is None")
             return False
 
         try:
-            # Core session data
-            st.session_state.logged_in = True
-            st.session_state.user_id = session_data.user_id
-            st.session_state.username = session_data.username or ""
-            st.session_state.name = session_data.name or ""
-            st.session_state.session_token = session_data.session_token
-
-            # Role dengan safe extraction
-            st.session_state.user_role = self._extract_role_name(session_data)
-            st.session_state.role_id = session_data.role_id
+            st.session_state.authenticated = True
+            st.session_state.user_id = data.user_id
+            st.session_state.username = data.username
+            st.session_state.display_name = data.display_name
+            st.session_state.user_role = data.role
+            st.session_state.session_token = data.session_token
+            st.session_state.session_id = self.streamlit_session_id
 
             logger.opt(lazy=True).debug(
-                "Session set for user: {username} with role: {role}",
-                username=lambda: session_data.username,
-                role=lambda: st.session_state.user_role,
+                "Streamlit session set for user: {user} with role: {role}",
+                user=lambda: data.username,
+                role=lambda: data.role,
             )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to set session: {e}")
+            logger.error("Failed to set streamlit session: {error}", error=e)
             self.clear_session()
             return False
 
-    def _extract_role_name(self, data: SessionDataProtocol) -> str:
-        """Strategy pattern untuk role extraction."""
-        if not data.role_name or data.role_name.strip() == "":
-            return "pending"
-        return data.role_name
-
     @logger.catch
     def clear_session(self) -> bool:
-        """Clear session dengan safe cleanup."""
+        """Clear semua session data."""
         session_keys = [
-            "logged_in",
+            "authenticated",
             "user_id",
             "username",
-            "name",
+            "display_name",
             "user_role",
-            "role_id",
             "session_token",
+            "session_id",
         ]
 
-        cleared = sum(
-            1
-            for key in session_keys
-            if key in st.session_state and (st.session_state.pop(key, None) is not None)
-        )
+        cleared = 0
+        for key in session_keys:
+            if key in st.session_state:
+                st.session_state.pop(key, None)
+                cleared += 1
 
-        logger.debug(f"Cleared {cleared} session keys")
+        logger.debug("Cleared {count} streamlit session keys", count=cleared)
         return True
 
-    def get_current_user(self) -> dict[str, Any]:
-        """Safe access pattern untuk current user data."""
-        return {
+    def get_session_info(self) -> dict[str, Any]:
+        """Get current session info dengan context enrichment."""
+        # ✅ Basic session info
+        session_info = {
+            "streamlit_id": self.streamlit_session_id,
             "user_id": st.session_state.get("user_id"),
-            "username": st.session_state.get("username", ""),
-            "name": st.session_state.get("name", ""),
-            "role": st.session_state.get("user_role", "pending"),
-            "role_id": st.session_state.get("role_id", 0),
-            "is_pending": st.session_state.get("user_role", "pending") == "pending",
-            "is_logged_in": st.session_state.get("logged_in", False),
+            "username": st.session_state.get("username"),
+            "display_name": st.session_state.get("display_name"),
+            "role": st.session_state.get("user_role"),
+            "authenticated": st.session_state.get("authenticated", False),
+            "session_token": st.session_state.get("session_token"),
         }
 
-    def is_valid_session(self) -> bool:
-        """Validator pattern untuk session validity."""
-        required = ["logged_in", "user_id", "username"]
-        return all(
-            key in st.session_state for key in required
-        ) and st.session_state.get("logged_in", False)
+        # ✅ Enrich dengan context info (optional)
+        try:
+            session_info.update(
+                {
+                    "client_ip": getattr(st.context, "ip_address", None),
+                    "access_url": getattr(st.context, "url", None),
+                    "timezone": getattr(st.context, "timezone", None),
+                    "locale": getattr(st.context, "locale", None),
+                    "is_embedded": getattr(st.context, "is_embedded", False),
+                }
+            )
+        except (AttributeError, RuntimeError):
+            # Context tidak tersedia, skip enrichment
+            pass
+
+        return session_info
+
+    def is_authenticated(self) -> bool:
+        """Check authentication status."""
+        return st.session_state.get("authenticated", False)
+
+    def get_context_summary(self) -> dict[str, Any]:
+        """Get Streamlit context summary untuk debugging."""
+        # ✅ Explicit type annotation untuk features
+        features_dict: dict[str, dict[str, Any]] = {}
+
+        summary: dict[str, Any] = {
+            "context_available": False,
+            "features": features_dict,  # Use the typed dict
+            "session_id": self.streamlit_session_id,
+        }
+
+        # Test each context feature
+        context_features = [
+            "ip_address",
+            "headers",
+            "url",
+            "timezone",
+            "timezone_offset",
+            "locale",
+            "cookies",
+            "is_embedded",
+        ]
+
+        try:
+            # Test basic context access
+            _ = st.context
+            summary["context_available"] = True
+
+            for feature in context_features:
+                try:
+                    value = getattr(st.context, feature, None)
+                    # ✅ Assign to the properly typed features_dict
+                    features_dict[feature] = {
+                        "available": True,
+                        "has_value": value is not None,
+                        "type": type(value).__name__ if value is not None else "None",
+                    }
+                except Exception as e:
+                    features_dict[feature] = {"available": False, "error": str(e)}
+
+        except Exception as e:
+            summary["context_error"] = str(e)
+
+        return summary
 
 
-# TODO: Singleton pattern untuk global state manager instance
-_session_manager = SessionStateManager()
+# Singleton instance
+_streamlit_session = StreamlitSessionManager()
 
 
-# REMINDER: Backward compatibility functions
-def set_user_session(user_session) -> None:
-    """Backward compatibility wrapper."""
-    _session_manager.set_user_session(user_session)
+# ✅ Backward compatibility API
+def set_user_session(data: StreamlitSessionData) -> bool:
+    """Set streamlit session - backward compatible."""
+    return _streamlit_session.set_session(data)
 
 
-def clear_user_session() -> None:
-    """Backward compatibility wrapper."""
-    _session_manager.clear_session()
+def clear_user_session() -> bool:
+    """Clear streamlit session - backward compatible."""
+    return _streamlit_session.clear_session()
 
 
-def get_current_user() -> dict:
-    """Backward compatibility wrapper."""
-    return _session_manager.get_current_user()
+def get_current_user() -> dict[str, Any]:
+    """Get current session info - backward compatible."""
+    return _streamlit_session.get_session_info()
 
 
 def is_session_valid() -> bool:
-    """Backward compatibility wrapper."""
-    return _session_manager.is_valid_session()
+    """Check if session valid - backward compatible."""
+    return _streamlit_session.is_authenticated()
+
+
+def get_streamlit_context_debug() -> dict[str, Any]:
+    """Get context debug info untuk troubleshooting."""
+    return _streamlit_session.get_context_summary()
+
+
+# REMINDER: Using only REAL Streamlit APIs dari official docs
+# TODO: Remove imaginary API calls from other session files
+# PINNED: Session ID generated dari IP + User-Agent + URL untuk consistency
+# PINNED: Context enrichment optional - fallback gracefully jika tidak tersedia

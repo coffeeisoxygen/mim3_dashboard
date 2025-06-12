@@ -6,8 +6,8 @@ import streamlit as st
 from loguru import logger
 
 from config.logging import setup_logging
-from database.core import initialize_database
-from models.system.bootstrap import ensure_system_ready
+from core.bootstrap import ensure_system_ready
+from database.base import initialize_database
 from ui.components.ui_auth import AuthHandler
 from ui.page_manager import PageManager
 

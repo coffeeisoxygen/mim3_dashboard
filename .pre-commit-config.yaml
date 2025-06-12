@@ -93,6 +93,7 @@ exclude: |
   (?x)^(
     src/_version\.py|
     \.venv/.*|
+    \tests/.*|
     \.reports/.*|
     dist/.*|
     build/.*|

@@ -1,28 +1,35 @@
-"""Session restoration manager - UI orchestration layer."""
+"""Session restoration manager dengan SessionContext integration."""
 
 from __future__ import annotations
 
 import streamlit as st
 from loguru import logger
 
+from models.session.session_context import SessionContext
 from models.session.session_st import clear_user_session, set_user_session
-from models.user.user_auth import ActiveSession
+from models.user.user_auth import UserActiveSession
 from services.session_service import SessionService
 
 
 class SessionRestorationManager:
-    """Handle UI state restoration - coordinates service + UI state."""
+    """Handle UI state restoration dengan rich context tracking."""
 
-    def __init__(self):
-        self.session_service = SessionService()
+    def __init__(self, session_service: SessionService):
+        self.session_service = session_service
 
     @logger.catch
     def restore_session_from_token(self, session_token: str) -> bool:
-        """Restore Streamlit state dari database session."""
+        """Restore Streamlit state dengan context validation."""
         try:
-            logger.debug(f"Attempting session restoration: {session_token[:10]}...")
+            # Step 1: Capture current context
+            current_context = SessionContext.from_streamlit_context()
 
-            # Step 1: Get validation data dari service
+            logger.debug(
+                f"Attempting session restoration: {session_token[:10]}...",
+                client_info=current_context.get_client_info(),
+            )
+
+            # Step 2: Get validation data
             validation = self.session_service.get_session_restoration_data(
                 session_token
             )
@@ -31,25 +38,28 @@ class SessionRestorationManager:
                 logger.warning("Cannot restore invalid session")
                 return False
 
-            # Step 2: Validate required fields are not None
-            if not validation.user_id or not validation.username:
-                logger.warning("Session validation missing required user data")
-                return False
+            # Step 3: Security check - context validation jika perlu
+            if not current_context.is_local_access():
+                logger.info("Remote session restoration", ip=current_context.client_ip)
 
-            # Step 3: Create ActiveSession untuk UI dengan safe values
-            active_session = ActiveSession(
+            # Step 4: Create ActiveSession untuk UI state
+            active_session = UserActiveSession(
                 user_id=validation.user_id,
                 username=validation.username,
-                name=validation.username,  # TODO: Get actual display name
-                role_id=getattr(validation, "role_id", 0),  # Safe access
-                role_name=validation.role_name or "unknown",  # Safe default
+                name=validation.username,
+                role_id=getattr(validation, "role_id", 0),
+                role_name=validation.role_name or "unknown",
                 session_token=session_token,
             )
 
-            # Step 4: Set UI state
+            # Step 5: Set UI state
             set_user_session(active_session)
 
-            logger.info(f"Session restored in UI: {validation.username}")
+            logger.info(
+                f"Session restored in UI: {validation.username}",
+                context=current_context.get_client_info(),
+                timezone=current_context.get_display_timezone(),
+            )
             return True
 
         except Exception as e:
@@ -66,7 +76,7 @@ class SessionRestorationManager:
                 logger.debug("No session token found in state")
                 return False
 
-            # Validate via service
+            # Delegate validation ke service layer
             validation = self.session_service.validate_session(session_token)
 
             if not validation.is_valid:
@@ -74,7 +84,7 @@ class SessionRestorationManager:
                 self.clear_session_state(session_token)
                 return False
 
-            # Refresh activity
+            # Delegate refresh ke service layer
             return self.session_service.refresh_session(session_token)
 
         except Exception as e:
@@ -84,11 +94,11 @@ class SessionRestorationManager:
     def clear_session_state(self, session_token: str | None = None) -> bool:
         """Clear UI state dan database session."""
         try:
-            # Step 1: Clear UI state
+            # Step 1: Clear UI state (UI layer responsibility)
             clear_user_session()
             logger.debug("UI session cleared")
 
-            # Step 2: Deactivate database session
+            # Step 2: Deactivate database session (delegate to service)
             if session_token:
                 self.session_service.deactivate_session(session_token)
 
@@ -100,7 +110,19 @@ class SessionRestorationManager:
             return True  # Partial success - UI cleared
 
 
-# PINNED: Factory pattern untuk easier instantiation
+# PINNED: Factory pattern untuk dependency injection
 def get_session_restoration_manager() -> SessionRestorationManager:
-    """Factory untuk SessionRestorationManager instance."""
-    return SessionRestorationManager()
+    """Factory untuk SessionRestorationManager dengan injected dependencies.
+
+    Clean Architecture: Factory handles dependency wiring, tidak ada
+    hard coupling di constructor.
+    """
+    from services.session_service import get_session_service
+
+    session_service = get_session_service()
+    return SessionRestorationManager(session_service)
+
+
+# TODO: Add UserService dependency untuk get display name
+# [ ] PINNED: Create MockSessionService untuk unit testing
+# REMINDER: Manager layer fokus ke UI orchestration, business logic di service
